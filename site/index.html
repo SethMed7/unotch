@@ -203,7 +203,7 @@
         <h1>Live AI usage, quietly tucked into the edge of your Mac.</h1>
         <p class="lede">uNotch is a native menu bar utility for Claude, Codex, and Cursor Agent. Hover the edge of the screen, read your limits, and get back to work.</p>
         <div class="cta">
-          <a class="btn btn-primary" href="https://github.com/SethMed7/unotch/releases/latest">Download for Apple silicon</a>
+          <a class="btn btn-primary" href="https://github.com/SethMed7/unotch/releases/latest/download/uNotch-arm64.dmg" download="uNotch-arm64.dmg" type="application/x-apple-diskimage">Download for Apple silicon</a>
           <a class="btn btn-ghost" href="https://github.com/SethMed7/unotch">View on GitHub</a>
         </div>
         <ul class="chips" aria-label="Facts">
@@ -213,7 +213,7 @@
           <li class="chip">MIT</li>
           <li class="chip">No telemetry</li>
         </ul>
-        <p class="note">Signed, notarized, and open source. Reads the CLIs you already have — <code>claude</code>, <code>codex</code>, <code>agent</code>.</p>
+        <p class="note">Downloads <code>uNotch-arm64.dmg</code>, signed and notarized by Apple. <a href="https://github.com/SethMed7/unotch/releases/latest">Release notes</a>. Reads the CLIs you already have — <code>claude</code>, <code>codex</code>, <code>agent</code>.</p>
       </div>
 
       <div class="stage" aria-label="Illustration of the uNotch HUD">
@@ -319,21 +319,21 @@
         <div>
           <h3>Install</h3>
           <ol>
-            <li>Download the latest DMG.<p>Apple silicon, macOS 14 Sonoma or newer.</p></li>
-            <li>Drag <strong>uNotch</strong> into <strong>Applications</strong>.</li>
+            <li>Download <code>uNotch-arm64.dmg</code>.<p>Apple silicon, macOS 14 Sonoma or newer.</p></li>
+            <li>Open the disk image and drag <strong>uNotch</strong> into <strong>Applications</strong>.</li>
             <li>Launch it. The mark appears in the menu bar; the cue appears at the screen edge.</li>
           </ol>
           <div class="cta">
-            <a class="btn btn-primary" href="https://github.com/SethMed7/unotch/releases/latest">Download for Apple silicon</a>
+            <a class="btn btn-primary" href="https://github.com/SethMed7/unotch/releases/latest/download/uNotch-arm64.dmg" download="uNotch-arm64.dmg" type="application/x-apple-diskimage">Download for Apple silicon</a>
           </div>
         </div>
         <div>
           <h3>Verify the download</h3>
           <pre><code>shasum -a 256 -c SHA256SUMS
-xcrun stapler validate uNotch-&lt;version&gt;-arm64.dmg
+xcrun stapler validate uNotch-arm64.dmg
 spctl --assess --type open \
   --context context:primary-signature \
-  --verbose=2 uNotch-&lt;version&gt;-arm64.dmg</code></pre>
+  --verbose=2 uNotch-arm64.dmg</code></pre>
           <p class="muted" style="margin-top:12px;font-size:14px"><code>spctl</code> should report <code>accepted</code> with a notarized Developer ID source. Or skip the DMG entirely: <code>swift run uNotch</code> from a clone builds it with no dependencies.</p>
         </div>
       </div>

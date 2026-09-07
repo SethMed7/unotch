@@ -68,7 +68,9 @@ final class AppUpdater: ObservableObject {
                 return
             }
 
-            guard let asset = release.assets.first(where: { $0.name.hasSuffix("-arm64.dmg") }) else {
+            // Releases carry a versioned DMG and a stable-named copy; either is fine.
+            guard let asset = release.assets.first(where: { $0.name == "\(AppInfo.name)-arm64.dmg" })
+                ?? release.assets.first(where: { $0.name.hasSuffix("-arm64.dmg") }) else {
                 throw UpdateError("Release has no macOS installer")
             }
 

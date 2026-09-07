@@ -76,7 +76,12 @@ if [[ -n "$notary_profile" ]]; then
     spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg_path"
 fi
 
-checksum="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
-printf '%s  %s\n' "$checksum" "${dmg_path:t}" > "$checksum_path"
+# A stable-named copy lets the website link to
+# releases/latest/download/uNotch-arm64.dmg without a version in the URL.
+stable_dmg_path="$repo_root/dist/$app_name-$target_arch.dmg"
+cp "$dmg_path" "$stable_dmg_path"
+
+(cd "$repo_root/dist" && shasum -a 256 "${dmg_path:t}" "${stable_dmg_path:t}") > "$checksum_path"
 
 echo "$dmg_path"
+echo "$stable_dmg_path"

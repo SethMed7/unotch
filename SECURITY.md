@@ -74,9 +74,9 @@ updates, local caches, and security behavior.
 
 ```sh
 shasum -a 256 -c SHA256SUMS
-xcrun stapler validate uNotch-<version>-arm64.dmg
+xcrun stapler validate uNotch-arm64.dmg
 spctl --assess --type open --context context:primary-signature --verbose=2 \
-  uNotch-<version>-arm64.dmg
+  uNotch-arm64.dmg
 ```
 
 After copying the app to Applications, its signature can also be checked:

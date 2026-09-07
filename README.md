@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/SethMed7/unotch/releases/latest"><strong>Download for Apple silicon</strong></a>
+  <a href="https://github.com/SethMed7/unotch/releases/latest/download/uNotch-arm64.dmg"><strong>Download for Apple silicon</strong></a>
   · <a href="https://unotch.sethmedina.com/">Website</a>
   · macOS 14+
   · Native Swift
@@ -39,7 +39,7 @@ uNotch does not ask for, copy, or store provider credentials.
 
 ## Install
 
-1. [Download the latest DMG](https://github.com/SethMed7/unotch/releases/latest).
+1. [Download `uNotch-arm64.dmg`](https://github.com/SethMed7/unotch/releases/latest/download/uNotch-arm64.dmg) — the latest signed release. Release notes are on the [releases page](https://github.com/SethMed7/unotch/releases/latest).
 2. Open it and drag **uNotch** into **Applications**.
 3. Launch uNotch from Applications. Its mark appears in the menu bar.
 
@@ -119,14 +119,13 @@ installer.
 
 ## Verify a download
 
-Download `SHA256SUMS` from the same release, then run (substituting the file
-name of the DMG you downloaded):
+Download `SHA256SUMS` from the [same release](https://github.com/SethMed7/unotch/releases/latest), then run:
 
 ```sh
 shasum -a 256 -c SHA256SUMS
-xcrun stapler validate uNotch-<version>-arm64.dmg
+xcrun stapler validate uNotch-arm64.dmg
 spctl --assess --type open --context context:primary-signature --verbose=2 \
-  uNotch-<version>-arm64.dmg
+  uNotch-arm64.dmg
 ```
 
 `spctl` should report `accepted` with a notarized Developer ID source.

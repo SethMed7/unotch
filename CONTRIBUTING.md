@@ -89,9 +89,11 @@ maintainer's Keychain; CI never sees signing material.
    `VERSION` in `scripts/build-dmg.sh`, and move the **Unreleased** changelog
    section under the new version.
 2. `APPLE_SIGNING_IDENTITY=… NOTARY_PROFILE=… ./scripts/build-dmg.sh`
-3. Tag `vX.Y.Z`, create the GitHub release, and attach `dist/uNotch-X.Y.Z-arm64.dmg`
-   and `dist/SHA256SUMS`. The asset name must end in `-arm64.dmg` — the in-app
-   updater looks for that suffix.
+3. Tag `vX.Y.Z`, create the GitHub release, and attach all three files the script
+   writes to `dist/`: `uNotch-X.Y.Z-arm64.dmg`, the stable-named copy
+   `uNotch-arm64.dmg`, and `SHA256SUMS`. The website's download button and the
+   in-app updater both resolve `releases/latest/download/uNotch-arm64.dmg`, so the
+   stable name is required on every release.
 
 ## Reporting security issues
 
