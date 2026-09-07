@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
+
+      - name: Assemble site
+        run: |
+          ./scripts/build-site.sh /tmp/site
+          test -f /tmp/site/index.html
+          test -f /tmp/site/brand/tokens.css
+
+      - name: Check DESIGN.md structure
+        run: |
+          ruby -ryaml -e '
+            text = File.read("DESIGN.md")
+            fm = text.split("---")[1]
+            keys = YAML.safe_load(fm).keys
+            allowed = %w[name description colors typography rounded spacing components]
+            extra = keys - allowed
+            abort("DESIGN.md frontmatter has unsupported keys: #{extra}") unless extra.empty?
+            %w[Overview Colors Typography Elevation Components].each do |h|
+              abort("DESIGN.md missing section: #{h}") unless text =~ /^## (\d+\. )?#{h}/
+            end
+            abort("DESIGN.md missing section: Do'"'"'s and Don'"'"'ts") unless text =~ /^## (\d+\. )?Do.s and Don.ts/
+            puts "DESIGN.md ok"
+          '

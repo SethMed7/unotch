@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose a change. uNotch stays small, so lead with the problem.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please read the "What uNotch is, and is not" section of CONTRIBUTING.md first.
+        Dependencies, telemetry, a preferences window, and cloud features are out of scope.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can't you do, or what is harder than it should be?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: How would uNotch behave? Where would it appear (HUD, settings section, menu bar)?
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - New provider (local CLI)
+        - Parser / accuracy
+        - Accessibility
+        - HUD behaviour
+        - Website / docs
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy impact
+      description: Does this read, store, or send anything new? Say "none" if not.
+      placeholder: none
+    validations:
+      required: true

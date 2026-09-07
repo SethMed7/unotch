@@ -1,0 +1,62 @@
+name: Bug report
+description: Something in uNotch is wrong or a provider reads incorrectly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks. Please do not paste raw CLI output that contains account identifiers,
+        email addresses, or local paths — redact first.
+  - type: input
+    id: version
+    attributes:
+      label: uNotch version
+      description: Shown in the settings section and the menu bar menu.
+      placeholder: "1.1.0"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "15.6 (Apple silicon)"
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider involved
+      multiple: true
+      options:
+        - Claude
+        - Codex
+        - Cursor
+        - Not provider-specific
+    validations:
+      required: true
+  - type: input
+    id: cli
+    attributes:
+      label: CLI version(s)
+      description: e.g. `claude --version`, `codex --version`, `agent --version`
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you saw, what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Hover the edge
+        2. Hover the Codex ring
+        3. …
+  - type: textarea
+    id: output
+    attributes:
+      label: Redacted CLI output (optional)
+      description: Only if a parser is wrong. Remove identifiers first.
+      render: text
