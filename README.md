@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/SethMed7/unotch/releases/latest"><strong>Download for Apple silicon</strong></a>
-  · <a href="https://sethmed7.github.io/unotch/">Website</a>
+  · <a href="https://unotch.sethmedina.com/">Website</a>
   · macOS 14+
   · Native Swift
   · MIT
