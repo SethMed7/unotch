@@ -1,0 +1,15 @@
+# Docker build context for site/Dockerfile is the repository root; keep it small.
+# Only brand/, site/, and scripts/build-site.sh are copied into the image.
+.git
+.build
+.swiftpm
+.github
+.impeccable
+DerivedData
+dist
+_site
+Sources
+Tests
+Resources
+Package.swift
+*.md

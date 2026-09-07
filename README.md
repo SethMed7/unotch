@@ -136,7 +136,7 @@ spctl --assess --type open --context context:primary-signature --verbose=2 \
 Sources/uNotch/        AppKit windowing, SwiftUI UI, state, CLI readers, updater
 Tests/uNotchTests/     Parser, state, hover geometry, updater, and render checks
 brand/                 Brand canon: BRAND.md, tokens, logo variants
-site/                  The single-page website (GitHub Pages)
+site/                  The single-page website (Caddy on Railway)
 Resources/             macOS bundle metadata
 scripts/               Icon generation and signed DMG packaging
 DESIGN.md              Generated design system (Stitch format) for AI agents

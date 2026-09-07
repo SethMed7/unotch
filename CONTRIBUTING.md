@@ -40,6 +40,12 @@ UNOTCH_SNAPSHOT=/tmp/hud.png UNOTCH_SETTINGS_SNAPSHOT=/tmp/settings.png swift te
 
 The website is `site/index.html`; `scripts/build-site.sh` assembles it with the
 brand tokens into `_site/` for a local preview (`python3 -m http.server -d _site`).
+To test exactly what production serves, build the image from the repo root:
+
+```sh
+docker build -f site/Dockerfile -t unotch-site .
+docker run --rm -p 8080:8080 unotch-site     # http://localhost:8080
+```
 
 ## Making a change
 
@@ -79,6 +85,26 @@ Commit messages describe *why*, not just what.
 Pull requests are squash-merged to keep history linear. Stale approvals are
 dismissed when new commits are pushed. The maintainer may push small follow-up
 commits (typos, changelog) to a contributor's branch before merging.
+
+## Website deployment (maintainer)
+
+The site is a static page served by Caddy from the pinned two-stage
+`site/Dockerfile`; `site/Caddyfile` is the one home for its security and cache
+headers. The Docker build context is the repository root because the page
+consumes `brand/`. Railway project `unotch`, service `site`, environment
+`production`; the service variable `RAILWAY_DOCKERFILE_PATH=site/Dockerfile`
+(mirrored by `railway.json`) points the builder at the file.
+
+Deploys happen from CI: the `deploy-site` job in `.github/workflows/ci.yml` runs
+`railway up` on every push to `main` that touches `site/`, `brand/`,
+`scripts/build-site.sh`, `railway.json`, or `.dockerignore`, after `build` has
+passed. It authenticates with the `RAILWAY_TOKEN` repository secret (a Railway
+project token scoped to `production`). Manual runs are possible with
+**Run workflow** or, from a linked checkout, `railway up --ci -s site`.
+
+Custom domain `unotch.sethmedina.com` is a CNAME to the target Railway prints for
+`railway domain unotch.sethmedina.com -s site`; the generated fallback domain is
+shown by `railway domain -s site`.
 
 ## Releasing (maintainer)
 
