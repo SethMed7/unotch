@@ -56,9 +56,52 @@ final class NotchStateTests: XCTestCase {
     }
 
     func testProviderHoverZonesMapFromTopToBottom() {
-        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: 20, railHeight: 220), .claude)
-        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: 110, railHeight: 220), .codex)
-        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: 200, railHeight: 220), .cursor)
+        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: 20, railHeight: 210), .claude)
+        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: 105, railHeight: 210), .codex)
+        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: 200, railHeight: 210), .cursor)
+    }
+
+    func testRailFooterIsReservedForSettingsGear() {
+        let rail = HUDMetrics.railHeight
+        let footer = HUDMetrics.railFooterHeight
+        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: rail - footer - 1, railHeight: rail, footerHeight: footer), .cursor)
+        XCTAssertNil(ProviderHoverGeometry.source(distanceFromTop: rail - footer + 1, railHeight: rail, footerHeight: footer))
+        XCTAssertNil(ProviderHoverGeometry.source(distanceFromTop: rail - 5, railHeight: rail, footerHeight: footer))
+    }
+
+    func testCollapsingClosesSettingsAndHoverZone() {
+        let state = NotchState(monitor: UsageMonitor())
+        state.isExpanded = true
+        state.isPointerNearBottom = true
+        state.toggleSettings()
+        XCTAssertTrue(state.isSettingsOpen)
+
+        state.isExpanded = false
+        XCTAssertFalse(state.isSettingsOpen)
+        XCTAssertFalse(state.isPointerNearBottom)
+        XCTAssertEqual(state.presentation, .idle)
+    }
+
+    func testReleaseVersionComparisonIgnoresTagPrefix() {
+        XCTAssertTrue(ReleaseVersion.isNewer("v1.1.0", than: "1.0.0"))
+        XCTAssertTrue(ReleaseVersion.isNewer("1.0.1", than: "v1.0.0"))
+        XCTAssertTrue(ReleaseVersion.isNewer("2.0", than: "1.9.9"))
+        XCTAssertFalse(ReleaseVersion.isNewer("v1.0.0", than: "1.0.0"))
+        XCTAssertFalse(ReleaseVersion.isNewer("0.9.9", than: "1.0.0"))
+        XCTAssertFalse(ReleaseVersion.isNewer("v1.1.0", than: "dev"))
+    }
+
+    func testGitHubReleasePayloadParsesTagAndAssets() throws {
+        let payload = Data(#"{"tag_name":"v1.1.0","assets":[{"name":"SHA256SUMS","browser_download_url":"https://example.com/SHA256SUMS"},{"name":"uNotch-1.1.0-arm64.dmg","browser_download_url":"https://example.com/uNotch-1.1.0-arm64.dmg"}]}"#.utf8)
+        let release = try ReleaseVersion.parseGitHub(payload)
+        XCTAssertEqual(release.version, "v1.1.0")
+        XCTAssertEqual(release.assets.map(\.name), ["SHA256SUMS", "uNotch-1.1.0-arm64.dmg"])
+        XCTAssertThrowsError(try ReleaseVersion.parseGitHub(Data("{}".utf8)))
+    }
+
+    func testUnsignedBundleIsRefusedByInstaller() {
+        // A directory that is not a signed bundle must never be accepted as an update target.
+        XCTAssertNil(CodeIdentity.teamIdentifier(of: FileManager.default.temporaryDirectory))
     }
 
     func testCLIErrorOutputIsNotSurfaced() throws {

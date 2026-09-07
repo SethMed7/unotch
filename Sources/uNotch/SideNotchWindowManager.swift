@@ -11,11 +11,14 @@ final class SideNotchPanel: NSPanel {
 final class SideNotchWindowManager: NSObject {
     private enum Metrics {
         static let idleSize = NSSize(width: 12, height: 60)
-        static let expandedSize = NSSize(width: 358, height: 220)
+        static let expandedSize = NSSize(width: HUDMetrics.expandedSize.width, height: HUDMetrics.expandedSize.height)
         static let hoverDebounce: TimeInterval = 0.15
         static let exitDebounce: TimeInterval = 0.22
         static let exitSlop: CGFloat = 5
-        static let railWidth: CGFloat = 58
+        static let railWidth: CGFloat = HUDMetrics.railWidth
+        static let railFooterHeight: CGFloat = HUDMetrics.railFooterHeight
+        /// Pointer distance from the bottom of the expanded HUD that reveals the settings gear.
+        static let bottomHoverZone: CGFloat = 56
         static let placementDefaultsKey = "uNotch.anchorYFraction"
     }
 
@@ -211,6 +214,7 @@ final class SideNotchWindowManager: NSObject {
 
         if isInside {
             pointerEntered()
+            updateBottomHoverZone(at: point)
             updateHoveredProvider(at: point)
         } else if state.isPointerInside {
             hoveredSource = nil
@@ -219,6 +223,18 @@ final class SideNotchWindowManager: NSObject {
     }
 
     private var hoveredSource: MonitorSource?
+
+    private func updateBottomHoverZone(at screenPoint: NSPoint) {
+        guard state.isExpanded else {
+            if state.isPointerNearBottom { state.isPointerNearBottom = false }
+            return
+        }
+        let local = panel.convertPoint(fromScreen: screenPoint)
+        let nearBottom = local.y >= -Metrics.exitSlop && local.y <= Metrics.bottomHoverZone
+        if nearBottom != state.isPointerNearBottom {
+            state.isPointerNearBottom = nearBottom
+        }
+    }
 
     private func updateHoveredProvider(at screenPoint: NSPoint) {
         guard state.isExpanded else {
@@ -234,14 +250,17 @@ final class SideNotchWindowManager: NSObject {
             return
         }
 
+        // The footer belongs to the settings gear; only the rows above it switch providers.
         let distanceFromTop = panel.frame.height - local.y
         guard let source = ProviderHoverGeometry.source(
             distanceFromTop: distanceFromTop,
-            railHeight: panel.frame.height
+            railHeight: panel.frame.height,
+            footerHeight: Metrics.railFooterHeight
         ) else { return }
         guard source != hoveredSource else { return }
 
         hoveredSource = source
+        if state.isSettingsOpen { state.isSettingsOpen = false }
         state.monitor.refresh(source)
     }
 
@@ -334,12 +353,15 @@ private extension NSRect {
 }
 
 enum ProviderHoverGeometry {
-    static func source(distanceFromTop: CGFloat, railHeight: CGFloat) -> MonitorSource? {
-        guard railHeight > 0, distanceFromTop >= 0, distanceFromTop <= railHeight else {
+    /// Maps a pointer offset from the top of the rail to a provider row. Returns nil
+    /// outside the rail or inside the footer reserved for the settings gear.
+    static func source(distanceFromTop: CGFloat, railHeight: CGFloat, footerHeight: CGFloat = 0) -> MonitorSource? {
+        let providerHeight = railHeight - footerHeight
+        guard providerHeight > 0, distanceFromTop >= 0, distanceFromTop <= providerHeight else {
             return nil
         }
 
-        let rowHeight = railHeight / CGFloat(MonitorSource.allCases.count)
+        let rowHeight = providerHeight / CGFloat(MonitorSource.allCases.count)
         let index = min(
             MonitorSource.allCases.count - 1,
             max(0, Int(distanceFromTop / rowHeight))

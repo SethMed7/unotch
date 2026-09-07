@@ -43,18 +43,6 @@ enum MonitorSource: String, CaseIterable, Identifiable {
         case .cursor: "cursorarrow.rays"
         }
     }
-
-    var task: String {
-        switch self {
-        case .claude: "Reviewing architecture"
-        case .codex: "Implementing side-notch HUD"
-        case .cursor: "Indexing workspace"
-        }
-    }
-
-    var accent: NSColor {
-        NSColor(red: 0.231, green: 0.886, blue: 0.608, alpha: 1)
-    }
 }
 
 enum UsageLoadState: Equatable, Sendable {
@@ -253,16 +241,30 @@ final class NotchState: ObservableObject {
         didSet { UserDefaults.standard.set(edge.rawValue, forKey: Self.edgeDefaultsKey) }
     }
     @Published var isPointerInside = false
-    @Published var isExpanded = false
+    @Published var isExpanded = false {
+        didSet {
+            guard !isExpanded else { return }
+            // Collapsing always returns the HUD to usage; settings never persist.
+            isSettingsOpen = false
+            isPointerNearBottom = false
+        }
+    }
+
+    /// The settings section replaces the usage callout while open.
+    @Published var isSettingsOpen = false
+    /// True while the pointer is within the bottom hover zone of the expanded HUD.
+    @Published var isPointerNearBottom = false
 
     let monitor: UsageMonitor
+    let updater: AppUpdater
     var onDragChanged: ((CGSize) -> Void)?
     var onDragEnded: (() -> Void)?
 
     private static let edgeDefaultsKey = "uNotch.screenEdge"
 
-    init(monitor: UsageMonitor) {
+    init(monitor: UsageMonitor, updater: AppUpdater? = nil) {
         self.monitor = monitor
+        self.updater = updater ?? AppUpdater()
         self.edge = ScreenEdge(
             rawValue: UserDefaults.standard.string(forKey: Self.edgeDefaultsKey) ?? "left"
         ) ?? .left
@@ -279,6 +281,10 @@ final class NotchState: ObservableObject {
 
     func toggleEdge() {
         edge = edge.opposite
+    }
+
+    func toggleSettings() {
+        isSettingsOpen.toggle()
     }
 
     func dragChanged(_ translation: CGSize) {

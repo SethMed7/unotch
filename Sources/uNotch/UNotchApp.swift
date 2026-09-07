@@ -111,6 +111,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(edgeItem)
 
         menu.addItem(.separator())
+        let update = NSMenuItem(
+            title: state?.updater.phase.label ?? "Update & Restart",
+            action: #selector(updateAndRestart),
+            keyEquivalent: ""
+        )
+        update.target = self
+        update.isEnabled = !(state?.updater.phase.isBusy ?? false)
+        menu.addItem(update)
+
+        let version = NSMenuItem(title: "\(AppInfo.name) \(AppInfo.version)", action: nil, keyEquivalent: "")
+        version.isEnabled = false
+        menu.addItem(version)
+
+        menu.addItem(.separator())
         let quit = NSMenuItem(
             title: "Quit uNotch",
             action: #selector(quitApplication),
@@ -131,29 +145,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         state?.edge = edge
     }
 
+    @objc private func updateAndRestart() {
+        state?.updater.updateAndRestart()
+    }
+
     @objc private func quitApplication() {
         NSApplication.shared.terminate(nil)
     }
 }
 
+/// Menu bar mark: the brand geometry as a template image so macOS tints it.
+/// The status point is drawn in the same ink here by design (see brand/BRAND.md).
 private enum MenuBarLogo {
     static func makeImage() -> NSImage {
-        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
+        let side: CGFloat = 18
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: true) { rect in
+            let s = side / 1024
+            func p(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: x * s, y: y * s) }
+
             NSColor.black.setStroke()
+            NSColor.black.setFill()
             let mark = NSBezierPath()
-            mark.lineWidth = 2.1
+            mark.lineWidth = max(1.8, 84 * s * 1.3)
             mark.lineCapStyle = .round
-            mark.move(to: NSPoint(x: 4.5, y: 13.2))
-            mark.line(to: NSPoint(x: 4.5, y: 7.6))
-            mark.curve(
-                to: NSPoint(x: 13.5, y: 7.6),
-                controlPoint1: NSPoint(x: 4.5, y: 2.9),
-                controlPoint2: NSPoint(x: 13.5, y: 2.9)
-            )
-            mark.line(to: NSPoint(x: 13.5, y: 13.2))
+            mark.move(to: p(310, 308))
+            mark.line(to: p(310, 558))
+            mark.curve(to: p(714, 558), controlPoint1: p(310, 760), controlPoint2: p(714, 760))
+            mark.line(to: p(714, 308))
             mark.stroke()
 
-            NSBezierPath(ovalIn: NSRect(x: 12.4, y: 13.0, width: 2.2, height: 2.2)).fill()
+            let r = max(1.1, 39 * s * 1.5)
+            NSBezierPath(ovalIn: NSRect(x: 714 * s - r, y: 256 * s - r, width: r * 2, height: r * 2)).fill()
             return true
         }
         image.isTemplate = true

@@ -328,7 +328,7 @@ enum ProcessRunner {
 
         try process.run()
         let requests = [
-            #"{"id":1,"method":"initialize","params":{"clientInfo":{"name":"unotch","title":"uNotch","version":"1.0.0"}}}"#,
+            #"{"id":1,"method":"initialize","params":{"clientInfo":{"name":"unotch","title":"uNotch","version":"\#(AppInfo.version)"}}}"#,
             #"{"method":"initialized"}"#,
             #"{"id":2,"method":"account/rateLimits/read","params":null}"#
         ].joined(separator: "\n") + "\n"
