@@ -35,7 +35,15 @@ defaults delete app.unotch.utility
 
 ## Network and analytics
 
-The uNotch code does not make its own network requests and does not run a local
+uNotch makes exactly one kind of network request, and only when you ask for it.
+Choosing **Update & Restart** (in the HUD settings section or the menu bar menu)
+requests the latest release metadata from `api.github.com` and, if that release
+is newer than the running version, downloads its installer from `github.com`.
+Those requests carry the standard HTTP headers plus a `uNotch/<version>`
+user agent — no account, device, or usage information. Nothing is checked on a
+timer or at launch, and nothing is installed without that click.
+
+Otherwise the uNotch code makes no network requests and does not run a local
 server or listen on a port. It includes no analytics, telemetry, advertising,
 tracking pixels, or third-party crash-reporting SDKs.
 
