@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-07T21:00:00Z",
+  "title": "Design System: uNotch",
+  "extensions": {
+    "colorMeta": {
+      "mint": { "role": "primary", "displayName": "Mint (status point)", "canonical": "#3BE29B", "tonalRamp": ["#06301F", "#0B5A3A", "#128554", "#1FAE71", "#3BE29B", "#6FEBB6", "#A3F2D0", "#D6FAE9"] },
+      "charcoal": { "role": "neutral", "displayName": "Charcoal", "canonical": "#15191B", "tonalRamp": ["#0A0C0D", "#15191B", "#1E2427", "#2A3135", "#4A5358", "#8B9498", "#C3C9CB", "#F4F7F6"] },
+      "graphite": { "role": "neutral", "displayName": "Graphite", "canonical": "#1E2427", "tonalRamp": ["#0A0C0D", "#15191B", "#1E2427", "#2A3135", "#4A5358", "#8B9498", "#C3C9CB", "#F4F7F6"] },
+      "ash": { "role": "neutral", "displayName": "Ash", "canonical": "#2A3135", "tonalRamp": ["#0A0C0D", "#15191B", "#1E2427", "#2A3135", "#4A5358", "#8B9498", "#C3C9CB", "#F4F7F6"] },
+      "smoke": { "role": "neutral", "displayName": "Smoke", "canonical": "#8B9498", "tonalRamp": ["#0A0C0D", "#15191B", "#1E2427", "#2A3135", "#4A5358", "#8B9498", "#C3C9CB", "#F4F7F6"] },
+      "paper": { "role": "neutral", "displayName": "Paper", "canonical": "#F4F7F6", "tonalRamp": ["#0A0C0D", "#15191B", "#1E2427", "#2A3135", "#4A5358", "#8B9498", "#C3C9CB", "#F4F7F6"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Hero sentence on the site." },
+      "title": { "displayName": "Title", "purpose": "HUD callout title. Rounded, 700." },
+      "mono": { "displayName": "Mono", "purpose": "Code blocks and data labels only." }
+    },
+    "shadows": [
+      { "name": "callout", "value": "0 3px 7px rgba(0,0,0,0.18)", "purpose": "The only shadow. Callout bubble floating off the rail." }
+    ],
+    "motion": [
+      { "name": "spring-present", "value": "spring(response 0.35, damping 0.8)", "purpose": "Idle → expanded and settings/usage swaps." },
+      { "name": "ease-fill", "value": "280ms ease-out", "purpose": "Progress bar fills." },
+      { "name": "fade", "value": "120ms", "purpose": "Reduced-motion fallback and gear reveal." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "900px" },
+      { "name": "lg", "value": "1200px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single primary action on a page (download) or in the HUD (Update & Restart).",
+      "html": "<a class=\"ds-btn-primary\" href=\"#\">Download for Apple silicon</a>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; min-height: 44px; padding: 12px 20px; border-radius: 999px; background: #3BE29B; color: #15191B; font: 600 15px/1 -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, sans-serif; text-decoration: none; transition: background 160ms cubic-bezier(0.2,0.8,0.2,1); } .ds-btn-primary:hover { background: #F4F7F6; } .ds-btn-primary:focus-visible { outline: 2px solid #3BE29B; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary action: View on GitHub, Quit.",
+      "html": "<a class=\"ds-btn-ghost\" href=\"#\">View on GitHub</a>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; min-height: 44px; padding: 12px 20px; border-radius: 999px; background: rgba(21,25,27,0.62); color: rgba(244,247,246,0.96); border: 1px solid rgba(244,247,246,0.16); font: 600 15px/1 -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, sans-serif; text-decoration: none; transition: background 160ms cubic-bezier(0.2,0.8,0.2,1); } .ds-btn-ghost:hover { background: #1E2427; color: #F4F7F6; } .ds-btn-ghost:focus-visible { outline: 2px solid #3BE29B; outline-offset: 2px; }"
+    },
+    {
+      "name": "Data Chip",
+      "kind": "chip",
+      "refersTo": "data-label",
+      "description": "Non-interactive data label: macOS 14+, arm64, MIT.",
+      "html": "<span class=\"ds-chip\">macOS 14+</span>",
+      "css": ".ds-chip { display: inline-block; padding: 2px 6px; border-radius: 6px; background: #1E2427; color: #8B9498; font: 400 13px/1.6 ui-monospace, 'SF Mono', Menlo, monospace; }"
+    },
+    {
+      "name": "Usage Callout",
+      "kind": "card",
+      "refersTo": "callout",
+      "description": "Glass bubble with a title, secondary detail, and one usage row.",
+      "html": "<div class=\"ds-callout\"><div class=\"ds-callout-h\"><strong>Claude usage</strong><span>Updated 2 minutes ago</span></div><div class=\"ds-row\"><span>5-hour limit</span><b>66% remaining</b></div><div class=\"ds-bar\"><i style=\"width:66%\"></i></div></div>",
+      "css": ".ds-callout { width: 292px; padding: 14px 16px; border-radius: 15px; background: rgba(21,25,27,0.62); backdrop-filter: blur(24px) saturate(1.4); border: 1px solid rgba(244,247,246,0.16); box-shadow: 0 3px 7px rgba(0,0,0,0.18); color: rgba(244,247,246,0.96); font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, sans-serif; } .ds-callout-h { display: flex; flex-direction: column; gap: 1px; margin-bottom: 12px; } .ds-callout-h strong { font: 700 15px/1.2 ui-rounded, -apple-system, sans-serif; } .ds-callout-h span { font: 500 10px/1.2 inherit; color: rgba(244,247,246,0.72); } .ds-row { display: flex; justify-content: space-between; font: 600 11px/1.2 inherit; color: rgba(244,247,246,0.72); margin-bottom: 4px; } .ds-row b { font: 700 11px/1.2 ui-rounded, -apple-system, sans-serif; font-variant-numeric: tabular-nums; color: rgba(244,247,246,0.96); } .ds-bar { height: 6px; border-radius: 999px; background: rgba(244,247,246,0.12); overflow: hidden; } .ds-bar i { display: block; height: 100%; border-radius: 999px; background: #3BE29B; transition: width 280ms cubic-bezier(0.2,0.8,0.2,1); }"
+    },
+    {
+      "name": "Side Segment",
+      "kind": "input",
+      "refersTo": "segment",
+      "description": "Two-option picker in the settings section: Left / Right.",
+      "html": "<div class=\"ds-seg\" role=\"radiogroup\" aria-label=\"Side\"><button class=\"ds-seg-b is-on\" role=\"radio\" aria-checked=\"true\">Left</button><button class=\"ds-seg-b\" role=\"radio\" aria-checked=\"false\">Right</button></div>",
+      "css": ".ds-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 11px; background: rgba(244,247,246,0.10); } .ds-seg-b { min-width: 52px; height: 22px; border: 0; border-radius: 9px; background: transparent; color: rgba(244,247,246,0.72); font: 600 11px/1 -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, sans-serif; cursor: pointer; } .ds-seg-b:hover { color: rgba(244,247,246,0.96); } .ds-seg-b.is-on { background: rgba(244,247,246,0.16); color: rgba(244,247,246,0.96); } .ds-seg-b:focus-visible { outline: 2px solid #3BE29B; outline-offset: 1px; }"
+    },
+    {
+      "name": "Header Nav",
+      "kind": "nav",
+      "refersTo": "rail",
+      "description": "Site header: mark plus three text links.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-brand\" href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 1024 1024\"><path d=\"M310 308v250c0 126 90 206 202 206s202-80 202-206V308\" fill=\"none\" stroke=\"#F4F7F6\" stroke-width=\"84\" stroke-linecap=\"round\"/><circle cx=\"714\" cy=\"256\" r=\"39\" fill=\"#3BE29B\"/></svg>uNotch</a><a href=\"#\">GitHub</a><a href=\"#\">Privacy</a><a href=\"#\">Security</a></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 20px; height: 64px; font: 500 14px/1 -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, sans-serif; } .ds-nav a { color: rgba(244,247,246,0.72); text-decoration: none; } .ds-nav a:hover { color: rgba(244,247,246,0.96); } .ds-nav-brand { display: inline-flex; align-items: center; gap: 8px; margin-right: auto; color: #F4F7F6 !important; font: 600 16px/1 ui-rounded, -apple-system, sans-serif; } .ds-nav a:focus-visible { outline: 2px solid #3BE29B; outline-offset: 2px; border-radius: 4px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Tucked",
+    "overview": "uNotch is a quiet instrument. It lives at the edge of a Mac screen as a seven-point cue and only becomes a readout when the pointer asks. Everything in the system follows from that posture: dark glass that borrows the desktop behind it, ink that is paper at opacity rather than fixed grey, and one accent — the mint status point from the logo — that appears only where something is live or where the user acts. The system is native first: SF Rounded numerals, the system text face, NSVisualEffectView glass, and no loaded web fonts or third-party requests anywhere, on the app or on the site.\n\nThe system explicitly rejects the \"AI tool\" landing-page look: purple-to-blue gradients, neon glows, card grids of features, floating blobs, eyebrow caps labels over every heading, and marketing verbs. It also rejects dashboard density. uNotch shows a handful of numbers; each one gets room.",
+    "keyCharacteristics": [
+      "Dark glass surfaces tinted charcoal; depth from tint, never from stacked shadows",
+      "One accent (mint) rationed to live state and the single primary action",
+      "Rounded numerals are the loudest thing on any surface",
+      "Hairlines and spacing group content; cards are the exception, not the layout",
+      "Motion is a single spring for presentation and a short ease for bar fills"
+    ],
+    "rules": [
+      { "name": "The Status Point Rule", "body": "Mint is a signal, not a theme. It reports live state or marks the primary action — one action per page, which may repeat (a download button at the top and bottom) but never differ. Never on headings, borders, bullets, backgrounds, or decoration. If a screen has mint on two different actions, one of them is wrong.", "section": "colors" },
+      { "name": "The Paper-Over-Glass Rule", "body": "Text on glass is paper at opacity, never a hex grey. Opacity lets the desktop behind the HUD tint the type so it reads as part of the surface.", "section": "colors" },
+      { "name": "The Numeral Rule", "body": "Percentages and reset times are the product. They are rounded-display, semibold or bolder, tabular-nums, and the most legible element in view. A percentage set in the body face is a defect.", "section": "typography" },
+      { "name": "The No-Eyebrow Rule", "body": "Small caps labels above headings are prohibited. Caps/mono labels exist only as genuine data labels (table heads, status chips).", "section": "typography" },
+      { "name": "The One Shadow Rule", "body": "If a second shadow appears anywhere, delete it. Depth is tint.", "section": "elevation" },
+      { "name": "The Hairline Rule", "body": "Borders on glass are 1 px paper at 0.16 — never a solid grey line and never thicker than 1 px.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do write the name as uNotch — lowercase u, capital N — everywhere, including at the start of a sentence.",
+      "Do keep mint to live state and the single primary action (The Status Point Rule).",
+      "Do set every percentage in ui-rounded, ≥600 weight, tabular-nums (The Numeral Rule).",
+      "Do express text on glass as paper at 0.96 / 0.72 / 0.50 opacity.",
+      "Do separate sections with hairlines and space (96 px on desktop, 64 px on mobile), not boxes.",
+      "Do ship the site with zero external requests: no web fonts, analytics, or CDNs.",
+      "Do verify contrast numerically; the floor is 4.5:1 for body and 3:1 for UI.",
+      "Do provide a visible 2 px mint focus ring on every interactive element."
+    ],
+    "donts": [
+      "Don't use purple-to-blue gradients, neon glows, or \"AI\" sparkle iconography.",
+      "Don't put features in a grid of cards. Rows with hairlines.",
+      "Don't add eyebrow caps labels above headings.",
+      "Don't add a second shadow anywhere; the callout is the only surface that casts one.",
+      "Don't colour the mint point in the menu bar; the menu bar mark is a template image.",
+      "Don't use the words seamless, powerful, supercharge, empower, or effortless.",
+      "Don't load a web font. If the display face is unavailable, the system face is correct.",
+      "Don't let the mark shrink below 16 px or draw it without the status point."
+    ]
+  }
+}

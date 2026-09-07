@@ -3,4 +3,5 @@
 .swiftpm/
 DerivedData/
 *.xcuserstate
-
+dist/
+_site/

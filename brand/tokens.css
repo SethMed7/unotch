@@ -1,0 +1,51 @@
+/* uNotch brand tokens — canon: brand/BRAND.md. Do not edit values here alone. */
+:root {
+  /* colour */
+  --un-charcoal: #15191B;
+  --un-graphite: #1E2427;
+  --un-ash: #2A3135;
+  --un-smoke: #8B9498;
+  --un-paper: #F4F7F6;
+  --un-mint: #3BE29B;
+
+  /* ink over glass (paper at opacity) */
+  --un-ink: rgba(244, 247, 246, 0.96);
+  --un-ink-2: rgba(244, 247, 246, 0.72);
+  --un-ink-3: rgba(244, 247, 246, 0.50);
+  --un-hairline: rgba(244, 247, 246, 0.16);
+  --un-divider: rgba(244, 247, 246, 0.10);
+
+  /* glass */
+  --un-glass: rgba(21, 25, 27, 0.62);
+  --un-glass-strong: rgba(21, 25, 27, 0.72);
+  --un-glass-blur: blur(24px) saturate(1.4);
+  --un-shadow-callout: 0 3px 7px rgba(0, 0, 0, 0.18);
+
+  /* type */
+  --un-font-display: ui-rounded, -apple-system, BlinkMacSystemFont, "SF Pro Rounded", Inter, "Helvetica Neue", sans-serif;
+  --un-font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Helvetica Neue", sans-serif;
+  --un-font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* radius */
+  --un-r-chip: 6px;
+  --un-r-control: 11px;
+  --un-r-callout: 15px;
+  --un-r-rail: 24px;
+  --un-r-pill: 999px;
+
+  /* spacing (4-based) */
+  --un-s-1: 4px;
+  --un-s-2: 8px;
+  --un-s-3: 12px;
+  --un-s-4: 16px;
+  --un-s-6: 24px;
+  --un-s-8: 32px;
+  --un-s-12: 48px;
+  --un-s-16: 64px;
+  --un-s-24: 96px;
+
+  /* motion */
+  --un-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --un-dur-fill: 280ms;
+  --un-dur-fade: 120ms;
+}

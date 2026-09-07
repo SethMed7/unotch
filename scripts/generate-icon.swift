@@ -1,6 +1,9 @@
 import AppKit
 import Foundation
 
+// Renders the app icon from the brand geometry in brand/logo/icon.svg
+// (1024 grid, charcoal tile, paper mark, mint status point). brand/BRAND.md is canon.
+
 guard CommandLine.arguments.count == 2 else {
     fputs("usage: swift generate-icon.swift <AppIcon.iconset>\n", stderr)
     exit(64)
