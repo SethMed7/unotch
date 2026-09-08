@@ -62,11 +62,48 @@ final class NotchStateTests: XCTestCase {
     }
 
     func testRailFooterIsReservedForSettingsGear() {
-        let rail = HUDMetrics.railHeight
+        let rail = HUDMetrics.railHeight(providerCount: 3)
         let footer = HUDMetrics.railFooterHeight
         XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: rail - footer - 1, railHeight: rail, footerHeight: footer), .cursor)
         XCTAssertNil(ProviderHoverGeometry.source(distanceFromTop: rail - footer + 1, railHeight: rail, footerHeight: footer))
         XCTAssertNil(ProviderHoverGeometry.source(distanceFromTop: rail - 5, railHeight: rail, footerHeight: footer))
+    }
+
+    func testRailShrinksToTheInstalledProviders() {
+        XCTAssertEqual(HUDMetrics.railHeight(providerCount: 3), 252)
+        XCTAssertEqual(HUDMetrics.railHeight(providerCount: 2), 186)
+        XCTAssertEqual(HUDMetrics.railHeight(providerCount: 1), 120)
+        // The panel never drops below the settings callout, which must still fit.
+        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 3).height, 252)
+        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 2).height, HUDMetrics.settingsCalloutHeight)
+        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 1).height, HUDMetrics.settingsCalloutHeight)
+    }
+
+    func testHoverRowsFollowTheInstalledProviders() {
+        let sources: [MonitorSource] = [.claude, .cursor]
+        let rail = HUDMetrics.railHeight(providerCount: sources.count)
+        let footer = HUDMetrics.railFooterHeight
+        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: 10, railHeight: rail, footerHeight: footer, sources: sources), .claude)
+        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: rail - footer - 5, railHeight: rail, footerHeight: footer, sources: sources), .cursor)
+        XCTAssertNil(ProviderHoverGeometry.source(distanceFromTop: 10, railHeight: rail, footerHeight: footer, sources: []))
+    }
+
+    func testMonitorShowsOnlyInstalledProvidersAndReselects() {
+        let monitor = UsageMonitor(fetcher: StubFetcher(installed: [.claude, .cursor]))
+        XCTAssertEqual(monitor.snapshot.source, .codex)
+
+        monitor.detectInstalledSources()
+        XCTAssertEqual(monitor.sources, [.claude, .cursor])
+        XCTAssertEqual(monitor.snapshot.source, .claude, "a provider that is not installed cannot stay selected")
+
+        monitor.cycleSource()
+        XCTAssertEqual(monitor.snapshot.source, .cursor)
+    }
+
+    func testNothingInstalledKeepsEveryProviderVisible() {
+        let monitor = UsageMonitor(fetcher: StubFetcher(installed: []))
+        monitor.detectInstalledSources()
+        XCTAssertEqual(monitor.sources, MonitorSource.allCases)
     }
 
     func testCollapsingClosesSettingsAndHoverZone() {

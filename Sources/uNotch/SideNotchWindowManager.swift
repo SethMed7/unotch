@@ -11,7 +11,6 @@ final class SideNotchPanel: NSPanel {
 final class SideNotchWindowManager: NSObject {
     private enum Metrics {
         static let idleSize = NSSize(width: 12, height: 60)
-        static let expandedSize = NSSize(width: HUDMetrics.expandedSize.width, height: HUDMetrics.expandedSize.height)
         static let hoverDebounce: TimeInterval = 0.15
         static let exitDebounce: TimeInterval = 0.22
         static let exitSlop: CGFloat = 5
@@ -115,6 +114,23 @@ final class SideNotchWindowManager: NSObject {
             self?.positionPanel(animated: true)
         }
         .store(in: &cancellables)
+
+        // The rail is sized from the installed providers; resize the panel when that changes.
+        state.monitor.$sources
+            .map(\.count)
+            .removeDuplicates()
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.positionPanel(animated: true)
+            }
+            .store(in: &cancellables)
+    }
+
+    /// Height of the provider rail for the current provider list. The rail is
+    /// top-aligned inside the panel, so its bottom edge is `panel.height - railHeight`.
+    private var railHeight: CGFloat {
+        HUDMetrics.railHeight(providerCount: state.monitor.sources.count)
     }
 
     private func installPointerMonitors() {
@@ -230,7 +246,9 @@ final class SideNotchWindowManager: NSObject {
             return
         }
         let local = panel.convertPoint(fromScreen: screenPoint)
-        let nearBottom = local.y >= -Metrics.exitSlop && local.y <= Metrics.bottomHoverZone
+        let railBottom = panel.frame.height - railHeight
+        let nearBottom = local.y >= railBottom - Metrics.exitSlop
+            && local.y <= railBottom + Metrics.bottomHoverZone
         if nearBottom != state.isPointerNearBottom {
             state.isPointerNearBottom = nearBottom
         }
@@ -244,8 +262,9 @@ final class SideNotchWindowManager: NSObject {
 
         let local = panel.convertPoint(fromScreen: screenPoint)
         let railMinX = state.edge == .left ? 0 : panel.frame.width - Metrics.railWidth
+        let railBottom = panel.frame.height - railHeight
         guard local.x >= railMinX, local.x <= railMinX + Metrics.railWidth,
-              local.y >= 0, local.y <= panel.frame.height else {
+              local.y >= railBottom, local.y <= panel.frame.height else {
             hoveredSource = nil
             return
         }
@@ -254,8 +273,9 @@ final class SideNotchWindowManager: NSObject {
         let distanceFromTop = panel.frame.height - local.y
         guard let source = ProviderHoverGeometry.source(
             distanceFromTop: distanceFromTop,
-            railHeight: panel.frame.height,
-            footerHeight: Metrics.railFooterHeight
+            railHeight: railHeight,
+            footerHeight: Metrics.railFooterHeight,
+            sources: state.monitor.sources
         ) else { return }
         guard source != hoveredSource else { return }
 
@@ -312,8 +332,11 @@ final class SideNotchWindowManager: NSObject {
 
         let size: NSSize
         switch state.presentation {
-        case .idle: size = Metrics.idleSize
-        case .expanded: size = Metrics.expandedSize
+        case .idle:
+            size = Metrics.idleSize
+        case .expanded:
+            let expanded = HUDMetrics.expandedSize(providerCount: state.monitor.sources.count)
+            size = NSSize(width: expanded.width, height: expanded.height)
         }
 
         let screenFrame = screen.frame
@@ -355,18 +378,21 @@ private extension NSRect {
 enum ProviderHoverGeometry {
     /// Maps a pointer offset from the top of the rail to a provider row. Returns nil
     /// outside the rail or inside the footer reserved for the settings gear.
-    static func source(distanceFromTop: CGFloat, railHeight: CGFloat, footerHeight: CGFloat = 0) -> MonitorSource? {
+    static func source(
+        distanceFromTop: CGFloat,
+        railHeight: CGFloat,
+        footerHeight: CGFloat = 0,
+        sources: [MonitorSource] = MonitorSource.allCases
+    ) -> MonitorSource? {
         let providerHeight = railHeight - footerHeight
-        guard providerHeight > 0, distanceFromTop >= 0, distanceFromTop <= providerHeight else {
+        guard !sources.isEmpty, providerHeight > 0,
+              distanceFromTop >= 0, distanceFromTop <= providerHeight else {
             return nil
         }
 
-        let rowHeight = providerHeight / CGFloat(MonitorSource.allCases.count)
-        let index = min(
-            MonitorSource.allCases.count - 1,
-            max(0, Int(distanceFromTop / rowHeight))
-        )
-        return MonitorSource.allCases[index]
+        let rowHeight = providerHeight / CGFloat(sources.count)
+        let index = min(sources.count - 1, max(0, Int(distanceFromTop / rowHeight)))
+        return sources[index]
     }
 }
 

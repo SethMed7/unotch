@@ -4,7 +4,9 @@ import SwiftUI
 enum HUDMetrics {
     static let idleTab = CGSize(width: 7, height: 52)
     static let railWidth: CGFloat = 58
-    static let railHeight: CGFloat = 252
+    static let railTopPadding: CGFloat = 11
+    static let ringRowHeight: CGFloat = 56
+    static let ringRowSpacing: CGFloat = 10
     static let railFooterHeight: CGFloat = 42
     static let calloutWidth: CGFloat = 292
     static let usageCalloutHeight: CGFloat = 132
@@ -12,8 +14,23 @@ enum HUDMetrics {
     static let settingsCalloutHeight: CGFloat = 188
     static let gap: CGFloat = 8
 
-    static var expandedSize: CGSize {
-        CGSize(width: railWidth + gap + calloutWidth, height: railHeight)
+    /// The rail only holds the providers that are installed, so it shrinks with them:
+    /// 252 pt for three, 186 for two, 120 for one.
+    static func railHeight(providerCount: Int) -> CGFloat {
+        let count = CGFloat(max(providerCount, 1))
+        return railTopPadding
+            + count * ringRowHeight
+            + (count - 1) * ringRowSpacing
+            + railTopPadding
+            + railFooterHeight
+    }
+
+    /// The panel must hold the rail and the tallest callout (settings), whichever is taller.
+    static func expandedSize(providerCount: Int) -> CGSize {
+        CGSize(
+            width: railWidth + gap + calloutWidth,
+            height: max(railHeight(providerCount: providerCount), settingsCalloutHeight)
+        )
     }
 }
 
@@ -95,8 +112,8 @@ private struct ProviderRailView: View {
             Brand.glassTintStrong
 
             VStack(spacing: 0) {
-                VStack(spacing: 10) {
-                    ForEach(MonitorSource.allCases) { source in
+                VStack(spacing: HUDMetrics.ringRowSpacing) {
+                    ForEach(monitor.sources) { source in
                         SourceRingButton(
                             source: source,
                             remaining: monitor.remainingFraction(for: source),
@@ -108,7 +125,7 @@ private struct ProviderRailView: View {
                         )
                     }
                 }
-                .padding(.top, 11)
+                .padding(.top, HUDMetrics.railTopPadding)
 
                 Spacer(minLength: 0)
 
@@ -200,7 +217,7 @@ private struct SourceRingButton: View {
                 .monospacedDigit()
                 .foregroundStyle(Brand.ink2)
         }
-        .frame(width: 50, height: 56)
+        .frame(width: 50, height: HUDMetrics.ringRowHeight)
         .background(
             Brand.paper.opacity(isSelected ? 0.055 : 0),
             in: RoundedRectangle(cornerRadius: Brand.Radius.control, style: .continuous)
@@ -224,7 +241,7 @@ private struct ExpandedNotchView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: HUDMetrics.gap) {
+        HStack(alignment: .top, spacing: HUDMetrics.gap) {
             if state.edge == .left {
                 rail
                 flyout
@@ -233,12 +250,28 @@ private struct ExpandedNotchView: View {
                 rail
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: state.edge == .left ? .leading : .trailing)
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: state.edge == .left ? .topLeading : .topTrailing
+        )
+    }
+
+    private var railHeight: CGFloat {
+        HUDMetrics.railHeight(providerCount: monitor.sources.count)
+    }
+
+    private var calloutHeight: CGFloat {
+        if state.isSettingsOpen { return HUDMetrics.settingsCalloutHeight }
+        return monitor.snapshot.limits.count > 1
+            ? HUDMetrics.usageCalloutTallHeight
+            : HUDMetrics.usageCalloutHeight
     }
 
     private var rail: some View {
         ProviderRailView(state: state, monitor: monitor, edge: state.edge)
-            .frame(width: HUDMetrics.railWidth, height: HUDMetrics.railHeight)
+            .frame(width: HUDMetrics.railWidth, height: railHeight)
+            .animation(reduceMotion ? Brand.fade : Brand.spring, value: monitor.sources.count)
     }
 
     @ViewBuilder
@@ -250,15 +283,13 @@ private struct ExpandedNotchView: View {
                     .transition(.opacity)
             } else {
                 UsageFlyoutView(state: state, monitor: monitor)
-                    .frame(
-                        width: HUDMetrics.calloutWidth,
-                        height: monitor.snapshot.limits.count > 1
-                            ? HUDMetrics.usageCalloutTallHeight
-                            : HUDMetrics.usageCalloutHeight
-                    )
+                    .frame(width: HUDMetrics.calloutWidth, height: calloutHeight)
                     .transition(.opacity)
             }
         }
+        // Centre the callout on the rail so its pointer lands inside it; a callout taller
+        // than a short rail simply shares the rail's top edge.
+        .offset(y: max(0, (railHeight - calloutHeight) / 2))
         .animation(reduceMotion ? Brand.fade : Brand.spring, value: state.isSettingsOpen)
     }
 }

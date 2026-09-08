@@ -6,6 +6,21 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-09-07
+
+### Added
+- **The rail fits what you have.** uNotch checks which provider CLIs are installed
+  (`claude`, `codex`, `agent`) and shows only those. With two providers the rail is
+  186 pt; with one, 120 pt. The check reruns every refresh, so installing a CLI
+  later adds its ring within a minute. If none are found, all three stay visible
+  with their "not found" messages.
+- `scripts/publish-release.sh` builds, notarizes, verifies, tags, and publishes a
+  release with all three assets in one step.
+
+### Changed
+- A provider whose CLI is missing can no longer be the selected one; the first
+  installed provider is selected instead.
+
 ## [1.1.0] — 2026-09-07
 
 ### Added
@@ -40,6 +55,7 @@ All notable changes to uNotch are recorded here. The format follows
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/SethMed7/unotch/compare/v1.0.0...v1.2.0
 [1.1.0]: https://github.com/SethMed7/unotch/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/SethMed7/unotch/releases/tag/v1.0.0

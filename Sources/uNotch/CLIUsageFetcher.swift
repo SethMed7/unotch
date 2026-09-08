@@ -2,6 +2,8 @@ import Foundation
 
 protocol UsageFetching: Sendable {
     func fetchUsage(for source: MonitorSource) async -> UsageSnapshot
+    /// Providers whose local CLI is present on this Mac. Cheap file checks; safe to call often.
+    func installedSources() -> [MonitorSource]
 }
 
 actor CLIUsageFetcher: UsageFetching {
@@ -18,11 +20,36 @@ actor CLIUsageFetcher: UsageFetching {
         }.value
     }
 
+    nonisolated func installedSources() -> [MonitorSource] {
+        MonitorSource.allCases.filter { Self.executablePath(for: $0) != nil }
+    }
+
+    /// One place that knows where each provider's CLI lives.
+    static func executablePath(for source: MonitorSource) -> String? {
+        let home = NSString(string: "~").expandingTildeInPath
+        switch source {
+        case .codex:
+            return executable(named: "codex", preferredPaths: [
+                "/opt/homebrew/bin/codex",
+                "/usr/local/bin/codex"
+            ])
+        case .claude:
+            return executable(named: "claude", preferredPaths: [
+                "\(home)/.local/bin/claude",
+                "/opt/homebrew/bin/claude",
+                "/usr/local/bin/claude"
+            ])
+        case .cursor:
+            return executable(named: "agent", preferredPaths: [
+                "\(home)/.local/bin/agent",
+                "/opt/homebrew/bin/agent",
+                "/usr/local/bin/agent"
+            ])
+        }
+    }
+
     private static func fetchCodexUsage() -> UsageSnapshot {
-        guard let executable = executable(named: "codex", preferredPaths: [
-            "/opt/homebrew/bin/codex",
-            "/usr/local/bin/codex"
-        ]) else {
+        guard let executable = executablePath(for: .codex) else {
             return .unavailable(source: .codex, message: "Codex CLI not found")
         }
 
@@ -35,11 +62,7 @@ actor CLIUsageFetcher: UsageFetching {
     }
 
     private static func fetchClaudeUsage() -> UsageSnapshot {
-        guard let executable = executable(named: "claude", preferredPaths: [
-            NSString(string: "~/.local/bin/claude").expandingTildeInPath,
-            "/opt/homebrew/bin/claude",
-            "/usr/local/bin/claude"
-        ]) else {
+        guard let executable = executablePath(for: .claude) else {
             return .unavailable(source: .claude, message: "Claude CLI not found")
         }
 
@@ -60,11 +83,7 @@ actor CLIUsageFetcher: UsageFetching {
     }
 
     private static func fetchCursorUsage() -> UsageSnapshot {
-        guard let executable = executable(named: "agent", preferredPaths: [
-            NSString(string: "~/.local/bin/agent").expandingTildeInPath,
-            "/opt/homebrew/bin/agent",
-            "/usr/local/bin/agent"
-        ]) else {
+        guard let executable = executablePath(for: .cursor) else {
             return .unavailable(source: .cursor, message: "Cursor Agent CLI not found")
         }
 

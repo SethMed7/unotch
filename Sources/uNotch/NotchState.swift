@@ -135,6 +135,10 @@ struct UsageSnapshot: Equatable, Sendable {
 @MainActor
 final class UsageMonitor: ObservableObject {
     @Published private(set) var snapshot: UsageSnapshot
+    /// Providers shown in the HUD: the ones whose CLI is installed. The rail is sized
+    /// from this list. If nothing is installed, every provider stays visible so the
+    /// "not found" messages explain what to install.
+    @Published private(set) var sources: [MonitorSource] = MonitorSource.allCases
 
     private var snapshots: [MonitorSource: UsageSnapshot]
     private let fetcher: any UsageFetching
@@ -169,6 +173,17 @@ final class UsageMonitor: ObservableObject {
         requestAllRefresh(force: true)
     }
 
+    /// Re-reads which CLIs exist. Runs on every refresh cycle so installing or
+    /// removing a CLI shows up within a minute without relaunching.
+    func detectInstalledSources() {
+        let installed = fetcher.installedSources()
+        let next = installed.isEmpty ? MonitorSource.allCases : installed
+        if next != sources { sources = next }
+        if !sources.contains(snapshot.source), let first = sources.first {
+            select(first)
+        }
+    }
+
     func select(_ source: MonitorSource) {
         guard let storedSnapshot = snapshots[source] else { return }
         snapshot = storedSnapshot
@@ -184,7 +199,6 @@ final class UsageMonitor: ObservableObject {
     }
 
     func cycleSource() {
-        let sources = MonitorSource.allCases
         guard let index = sources.firstIndex(of: snapshot.source) else { return }
         select(sources[(index + 1) % sources.count])
     }
@@ -194,7 +208,8 @@ final class UsageMonitor: ObservableObject {
     }
 
     private func requestAllRefresh(force: Bool) {
-        MonitorSource.allCases.forEach { requestRefresh(for: $0, force: force) }
+        detectInstalledSources()
+        sources.forEach { requestRefresh(for: $0, force: force) }
     }
 
     private func requestRefresh(for source: MonitorSource, force: Bool) {

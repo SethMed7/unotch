@@ -35,7 +35,8 @@ dashboard window and no Dock icon.
 | Cursor | Cursor Agent CLI `/usage` | Monthly included usage |
 
 All usage is read from command-line tools already authenticated on your Mac.
-uNotch does not ask for, copy, or store provider credentials.
+uNotch does not ask for, copy, or store provider credentials. Only the providers
+whose CLI is installed appear; the rail shrinks to fit one, two, or three.
 
 ## Install
 
@@ -50,7 +51,9 @@ The installer supports Apple silicon Macs running macOS 14 Sonoma or newer.
 
 - Move the pointer to the subtle cue at the screen edge and hold for 150 ms to
   reveal the HUD.
-- Hover a provider logo to switch providers and refresh stale usage.
+- Hover a provider logo to switch providers and refresh stale usage. Providers
+  without an installed CLI are not shown; install one and its ring appears within
+  a minute.
 - Use the refresh control for an immediate read from the selected local CLI.
 - Drag the rail vertically or across the display to place it on either edge.
 - Hover near the **bottom** of the HUD to reveal the settings gear. It opens a

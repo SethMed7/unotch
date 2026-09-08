@@ -72,7 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func rebuildStatusMenu(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        for source in MonitorSource.allCases {
+        for source in monitor?.sources ?? MonitorSource.allCases {
             let value = monitor?.remainingFraction(for: source).map {
                 "\(Int(($0 * 100).rounded()))% remaining"
             } ?? "Waiting for CLI"

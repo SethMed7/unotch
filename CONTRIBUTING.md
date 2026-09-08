@@ -113,13 +113,18 @@ maintainer's Keychain; CI never sees signing material.
 
 1. Bump `CFBundleShortVersionString` in `Resources/Info.plist`, the default
    `VERSION` in `scripts/build-dmg.sh`, and move the **Unreleased** changelog
-   section under the new version.
-2. `APPLE_SIGNING_IDENTITY=… NOTARY_PROFILE=… ./scripts/build-dmg.sh`
-3. Tag `vX.Y.Z`, create the GitHub release, and attach all three files the script
-   writes to `dist/`: `uNotch-X.Y.Z-arm64.dmg`, the stable-named copy
-   `uNotch-arm64.dmg`, and `SHA256SUMS`. The website's download button and the
-   in-app updater both resolve `releases/latest/download/uNotch-arm64.dmg`, so the
-   stable name is required on every release.
+   section under the new version. Commit to `main`.
+2. Once per machine, store notarization credentials in Keychain (an App Store
+   Connect API key with the Developer role):
+   `xcrun notarytool store-credentials unotch --key AuthKey_XXXX.p8 --key-id XXXX --issuer <issuer-uuid>`
+3. `NOTARY_PROFILE=unotch ./scripts/publish-release.sh` — builds the signed,
+   notarized, stapled app and DMG, verifies them with `stapler` and `spctl`,
+   tags `vX.Y.Z`, and creates the GitHub release with all three assets:
+   `uNotch-X.Y.Z-arm64.dmg`, the stable-named copy `uNotch-arm64.dmg`, and
+   `SHA256SUMS`. The website's download button and the in-app updater both
+   resolve `releases/latest/download/uNotch-arm64.dmg`, so the stable name is
+   required on every release. The release notes are the version's CHANGELOG
+   section.
 
 ## Reporting security issues
 
