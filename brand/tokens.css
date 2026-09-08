@@ -5,8 +5,10 @@
   --un-graphite: #1E2427;
   --un-ash: #2A3135;
   --un-smoke: #8B9498;
+  --un-slate: #3B4549;
   --un-paper: #F4F7F6;
   --un-mint: #3BE29B;
+  --un-backdrop-ground: #B7C9C1; /* sampled from the Aetheria render's pale edge */
 
   /* ink over glass (paper at opacity) */
   --un-ink: rgba(244, 247, 246, 0.96);

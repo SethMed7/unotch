@@ -65,6 +65,28 @@ In the HUD, ink is expressed as paper at opacity over glass rather than as fixed
 greys (`0.96` primary, `0.72` secondary, `0.50` tertiary, `0.16` hairline,
 `0.10` divider). Tokens are in `tokens.css` / `tokens.json`.
 
+## Surfaces
+
+uNotch has two grounds, and every screen is one or the other:
+
+1. **Dark glass** — the product. The HUD, the menu bar, the app icon. Charcoal tint
+   over `NSVisualEffectView`, paper ink at opacity, mint as the status point.
+2. **Backdrop** — the website. The ground is Seth's own
+   [Aetheria](https://aetheria.sethmedina.com) render *emerald flow* (seed `805214`),
+   kept in `site/assets/` as responsive WebP and used three ways exactly as on
+   sethmedina.com: faint and fixed behind the whole page (`--ambient: 0.5`), at full
+   strength inside the hero's "desk" frame under the HUD (the glass over a real
+   wallpaper), and strong again behind the closing and footer, faded with
+   `mask-image`, never with painted scrims. The page ground `#B7C9C1` is sampled from
+   the render's pale edge so the image has no seams. Ink is **charcoal**; secondary
+   text is **ash** (`7.4:1` on the ground, `4.1:1` on the emerald core — so ash only
+   sits where the ambient is faint, and any text over a strong layer is full charcoal,
+   `5.0:1` on the core). On this ground the **primary action is charcoal**, not mint:
+   mint has no edge against pale mint, and the Status Point Rule keeps it for state.
+
+The footer of every uNotch web surface credits the render: *Backdrop made with
+Aetheria*.
+
 ## Type
 
 uNotch is a Mac utility; it speaks in the Mac's own voice.

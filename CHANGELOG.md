@@ -20,7 +20,7 @@ All notable changes to uNotch are recorded here. The format follows
   generated `DESIGN.md` in Google Stitch format, and `Brand` tokens in Swift. The
   idle edge cue now carries the mint status point; the selected provider's ring
   and the usage bars are mint.
-- **Website.** A single-page site in `site/`, served by Caddy on Railway and deployed from CI.
+- **Website.** A single-page site in `site/`, served by Caddy on Railway and deployed from CI, on an Aetheria emerald-flow backdrop with the same three-layer treatment and colophon footer as sethmedina.com.
 - Open-source scaffolding: MIT license, contributing guide, code of conduct,
   issue and pull request templates, CODEOWNERS, CI, Dependabot for Actions.
 

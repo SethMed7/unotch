@@ -6,8 +6,10 @@ colors:
   graphite: "#1E2427"
   ash: "#2A3135"
   smoke: "#8B9498"
+  slate: "#3B4549"
   paper: "#F4F7F6"
   mint: "#3BE29B"
+  backdrop-ground: "#B7C9C1"
   ink: "#F4F7F6F5"
   ink-2: "#F4F7F6B8"
   ink-3: "#F4F7F680"
@@ -79,6 +81,16 @@ components:
   button-primary-hover:
     backgroundColor: "{colors.paper}"
     textColor: "{colors.charcoal}"
+  button-primary-backdrop:
+    backgroundColor: "{colors.charcoal}"
+    textColor: "{colors.paper}"
+    typography: "{typography.label}"
+    rounded: "{rounded.pill}"
+    padding: "12px 20px"
+    height: "44px"
+  button-primary-backdrop-hover:
+    backgroundColor: "{colors.ash}"
+    textColor: "{colors.paper}"
   button-ghost:
     backgroundColor: "{colors.glass}"
     textColor: "{colors.ink}"
@@ -119,7 +131,7 @@ components:
 ---
 
 <!--
-  GENERATED from brand/BRAND.md + brand/tokens.json (2026-09-07).
+  GENERATED from brand/BRAND.md + brand/tokens.json (2026-09-07, backdrop surface added).
   The brand folder is the canon and wins any conflict with this file.
   REGENERATE this file when the canon changes — never hand-edit it.
 -->
@@ -137,6 +149,12 @@ than fixed grey, and one accent — the mint status point from the logo — that
 where something is live or where the user acts. The system is native first: SF Rounded
 numerals, the system text face, `NSVisualEffectView` glass, and no loaded web fonts or
 third-party requests anywhere, on the app or on the site.
+
+There are two grounds. The product is **dark glass**. The website is the **backdrop**
+surface: Seth's Aetheria render (emerald flow, seed 805214) used three ways — faint and
+fixed behind the page, full strength inside the hero's desk frame under the HUD, strong
+again behind the closing and footer — over a ground sampled from the render's pale edge, with
+charcoal ink. The glass HUD sits on that render exactly as it sits on a real wallpaper.
 
 The system explicitly rejects the "AI tool" landing-page look: purple-to-blue gradients,
 neon glows, card grids of features, floating blobs, eyebrow caps labels over every heading,
@@ -159,7 +177,11 @@ A charcoal ground, paper ink, and a single mint signal.
   and bars, the point on the mark, and the one primary button on a page. 10.5:1 on charcoal.
 
 ### Neutral
-- **Charcoal** (#15191B): brand ground — icon tile, site background, the tint under glass.
+- **Charcoal** (#15191B): brand ground for the product — icon tile, the tint under glass — and
+  the ink on the backdrop surface, including its primary button.
+- **Backdrop ground** (#B7C9C1): the website's page colour, sampled from the Aetheria render's
+  pale edge so the image blends without seams. Charcoal on it measures 9.7:1, ash 7.4:1.
+- **Slate** (#3B4549): tertiary text and data labels on the backdrop surface (5.4:1).
 - **Graphite** (#1E2427): raised dark surface for HUD mock backdrops and code blocks.
 - **Ash** (#2A3135): hairlines and dividers on solid dark surfaces.
 - **Smoke** (#8B9498): secondary text on charcoal (5.7:1, AA for body).
@@ -178,6 +200,10 @@ decoration. If a screen has mint on two different actions, one of them is wrong.
 
 **The Paper-Over-Glass Rule.** Text on glass is paper at opacity, never a hex grey. Opacity
 lets the desktop behind the HUD tint the type so it reads as part of the surface.
+
+**The Strong-Layer Rule.** Where the backdrop render is at full strength (the hero desk, the
+closing, the footer), text is full charcoal — 5.0:1 on the emerald core. Ash (4.1:1 there)
+may only sit over the faint ambient layer, whose opacity ceiling is 0.5.
 
 ## 3. Typography
 
@@ -224,11 +250,15 @@ never thicker than 1 px.
 
 ### Buttons
 - **Shape:** pill (999px) on the site; rounded control (11px) inside the HUD.
-- **Primary:** mint fill, charcoal text, 600 weight, 12px 20px padding, 44px min height.
-  One per page. On the site it is the download action; in the HUD it is "Update & Restart".
-- **Hover / Focus:** primary lifts to paper fill with charcoal text; ghost brightens from
-  Glass to Graphite. Focus is a 2 px mint ring offset 2 px, on every interactive element.
-- **Ghost:** glass fill, ink text, paper hairline border. Used for "View on GitHub", "Quit".
+- **Primary (dark glass):** mint fill, charcoal text, 600 weight, 12px 20px padding, 44px
+  min height. In the HUD it is "Update & Restart".
+- **Primary (backdrop):** charcoal fill, paper text, same metrics; hover to ash. On the site
+  it is the download action — mint has no edge against the pale ground, so mint stays state.
+- **Hover / Focus:** dark-glass primary lifts to paper; ghost brightens from Glass to Graphite
+  (dark) or takes a charcoal wash (backdrop). Focus is a 2 px ring offset 2 px on every
+  interactive element — mint on dark glass, charcoal on the backdrop.
+- **Ghost:** transparent, ink text, hairline border (paper 0.16 on dark, charcoal 0.36 on the
+  backdrop). Used for "View on GitHub", "Quit".
 
 ### Chips (if used)
 - **Style:** graphite background, smoke mono text, 6 px radius. Data labels only
@@ -273,7 +303,10 @@ never thicker than 1 px.
 ### Do:
 - **Do** write the name as `uNotch` — lowercase u, capital N — everywhere, including at the
   start of a sentence.
-- **Do** keep mint to live state and the single primary action (The Status Point Rule).
+- **Do** keep mint to live state and the single primary action (The Status Point Rule); on
+  the backdrop surface the primary action is charcoal and mint is state only.
+- **Do** use the Aetheria render three ways (ambient ≤ 0.5, desk, closing) with `mask-image`
+  fades, and credit it in the footer: "Backdrop made with Aetheria".
 - **Do** set every percentage in ui-rounded, ≥600 weight, `tabular-nums` (The Numeral Rule).
 - **Do** express text on glass as paper at 0.96 / 0.72 / 0.50 opacity.
 - **Do** separate sections with hairlines and space (96 px on desktop, 64 px on mobile),
@@ -290,4 +323,6 @@ never thicker than 1 px.
 - **Don't** colour the mint point in the menu bar; the menu bar mark is a template image.
 - **Don't** use the words seamless, powerful, supercharge, empower, or effortless.
 - **Don't** load a web font. If the display face is unavailable, the system face is correct.
+- **Don't** put ash or slate text over a strong backdrop layer; full charcoal only (The
+  Strong-Layer Rule). Don't fade the render with painted scrims — they seam against the ambient.
 - **Don't** let the mark shrink below 16 px or draw it without the status point.

@@ -9,6 +9,8 @@
       "graphite": { "role": "neutral", "displayName": "Graphite", "canonical": "#1E2427", "tonalRamp": ["#0A0C0D", "#15191B", "#1E2427", "#2A3135", "#4A5358", "#8B9498", "#C3C9CB", "#F4F7F6"] },
       "ash": { "role": "neutral", "displayName": "Ash", "canonical": "#2A3135", "tonalRamp": ["#0A0C0D", "#15191B", "#1E2427", "#2A3135", "#4A5358", "#8B9498", "#C3C9CB", "#F4F7F6"] },
       "smoke": { "role": "neutral", "displayName": "Smoke", "canonical": "#8B9498", "tonalRamp": ["#0A0C0D", "#15191B", "#1E2427", "#2A3135", "#4A5358", "#8B9498", "#C3C9CB", "#F4F7F6"] },
+      "backdrop-ground": { "role": "neutral", "displayName": "Backdrop ground (sampled from the Aetheria render)", "canonical": "#B7C9C1", "tonalRamp": ["#0A0C0D", "#15191B", "#2A3135", "#3B4549", "#6E8580", "#9BB4AC", "#B7C9C1", "#E3ECE9"] },
+      "slate": { "role": "neutral", "displayName": "Slate", "canonical": "#3B4549", "tonalRamp": ["#0A0C0D", "#15191B", "#1E2427", "#2A3135", "#3B4549", "#8B9498", "#C3C9CB", "#F4F7F6"] },
       "paper": { "role": "neutral", "displayName": "Paper", "canonical": "#F4F7F6", "tonalRamp": ["#0A0C0D", "#15191B", "#1E2427", "#2A3135", "#4A5358", "#8B9498", "#C3C9CB", "#F4F7F6"] }
     },
     "typographyMeta": {
@@ -93,6 +95,7 @@
     "rules": [
       { "name": "The Status Point Rule", "body": "Mint is a signal, not a theme. It reports live state or marks the primary action — one action per page, which may repeat (a download button at the top and bottom) but never differ. Never on headings, borders, bullets, backgrounds, or decoration. If a screen has mint on two different actions, one of them is wrong.", "section": "colors" },
       { "name": "The Paper-Over-Glass Rule", "body": "Text on glass is paper at opacity, never a hex grey. Opacity lets the desktop behind the HUD tint the type so it reads as part of the surface.", "section": "colors" },
+      { "name": "The Strong-Layer Rule", "body": "Where the backdrop render is at full strength (the hero desk, the closing, the footer), text is full charcoal — 5.0:1 on the emerald core. Ash (4.1:1 there) may only sit over the faint ambient layer, whose opacity ceiling is 0.5.", "section": "colors" },
       { "name": "The Numeral Rule", "body": "Percentages and reset times are the product. They are rounded-display, semibold or bolder, tabular-nums, and the most legible element in view. A percentage set in the body face is a defect.", "section": "typography" },
       { "name": "The No-Eyebrow Rule", "body": "Small caps labels above headings are prohibited. Caps/mono labels exist only as genuine data labels (table heads, status chips).", "section": "typography" },
       { "name": "The One Shadow Rule", "body": "If a second shadow appears anywhere, delete it. Depth is tint.", "section": "elevation" },
