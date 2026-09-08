@@ -1,12 +1,15 @@
 #!/bin/zsh
 # Builds, notarizes, verifies, tags, and publishes a uNotch release in one step.
 #
+#   ./scripts/publish-release.sh [version]
 #   NOTARY_PROFILE=<keychain profile> ./scripts/publish-release.sh [version]
 #
 # The version defaults to CFBundleShortVersionString in Resources/Info.plist and
 # must have a matching "## [version]" section in CHANGELOG.md (used as the notes).
 # Public releases are always notarized: the website's download button and the
-# in-app updater both rely on Gatekeeper accepting the DMG.
+# in-app updater both rely on Gatekeeper accepting the DMG. NOTARY_PROFILE names
+# a notarytool keychain profile; the default is the one shared by Seth's Mac apps
+# (rotli uses the same). Nothing secret lives in this file or the repo.
 set -euo pipefail
 
 script_dir="${0:A:h}"
@@ -15,7 +18,12 @@ cd "$repo_root"
 
 version="${1:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)}"
 tag="v$version"
-: "${NOTARY_PROFILE:?Set NOTARY_PROFILE to a notarytool keychain profile (xcrun notarytool store-credentials <name> --key <AuthKey.p8> --key-id <id> --issuer <issuer-uuid>)}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-rotli-notary}"
+if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
+    echo "No notarytool keychain profile named '$NOTARY_PROFILE'." >&2
+    echo "Create one: xcrun notarytool store-credentials $NOTARY_PROFILE --key <AuthKey.p8> --key-id <id> --issuer <issuer-uuid>" >&2
+    exit 1
+fi
 
 if [[ -n "$(git status --porcelain)" ]]; then
     echo "Working tree is not clean; commit or stash first." >&2

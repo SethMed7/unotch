@@ -116,8 +116,11 @@ maintainer's Keychain; CI never sees signing material.
    section under the new version. Commit to `main`.
 2. Once per machine, store notarization credentials in Keychain (an App Store
    Connect API key with the Developer role):
-   `xcrun notarytool store-credentials unotch --key AuthKey_XXXX.p8 --key-id XXXX --issuer <issuer-uuid>`
-3. `NOTARY_PROFILE=unotch ./scripts/publish-release.sh` — builds the signed,
+   `xcrun notarytool store-credentials <profile> --key AuthKey_XXXX.p8 --key-id XXXX --issuer <issuer-uuid>`
+   The maintainer's Mac already has one, shared with the other apps he ships
+   (`rotli-notary`), which the script uses by default; pass `NOTARY_PROFILE=<profile>`
+   to use another.
+3. `./scripts/publish-release.sh` — builds the signed,
    notarized, stapled app and DMG, verifies them with `stapler` and `spctl`,
    tags `vX.Y.Z`, and creates the GitHub release with all three assets:
    `uNotch-X.Y.Z-arm64.dmg`, the stable-named copy `uNotch-arm64.dmg`, and
