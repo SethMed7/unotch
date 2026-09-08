@@ -8,8 +8,13 @@
   <title>uNotch — Live AI usage, quietly tucked into the edge of your Mac</title>
   <meta name="description" content="uNotch is a free, open-source macOS menu bar utility that shows your Claude, Codex, and Cursor Agent usage limits in a glass HUD at the edge of the screen. No accounts, no telemetry.">
   <link rel="canonical" href="https://unotch.sethmedina.com/">
+  <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="icon" href="brand/logo/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="brand/logo/icon.svg">
+  <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="favicon-16.png" type="image/png" sizes="16x16">
+  <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" sizes="180x180">
+  <link rel="mask-icon" href="brand/logo/mark-mono-black.svg" color="#15191B">
   <meta property="og:type" content="website">
   <meta property="og:title" content="uNotch">
   <meta property="og:description" content="Live AI usage, quietly tucked into the edge of your Mac. Free, open source, macOS 14+.">
@@ -96,7 +101,7 @@
     .nav a { color: var(--ink-2); text-decoration: none; padding: 12px 2px; }
     .nav a:hover { color: var(--ink); }
     .brand { display: inline-flex; align-items: center; gap: 9px; margin-right: auto; color: var(--ink) !important; font: 600 16px/1 var(--un-font-display); letter-spacing: -0.01em; }
-    .brand svg { width: 22px; height: 22px; }
+    .brand img { width: 24px; height: 24px; display: block; }
 
     /* ---------- buttons / chips ---------- */
     .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 12px 20px; border-radius: var(--un-r-pill); font: 600 15px/1 var(--un-font-body); text-decoration: none; transition: background var(--un-dur-fade) var(--un-ease-out), color var(--un-dur-fade) var(--un-ease-out), border-color var(--un-dur-fade) var(--un-ease-out); }
@@ -240,7 +245,7 @@
   <header class="wrap">
     <nav class="nav" aria-label="Primary">
       <a class="brand" href="#top" aria-label="uNotch home">
-        <svg viewBox="0 0 1024 1024" aria-hidden="true"><path d="M310 308v250c0 126 90 206 202 206s202-80 202-206V308" fill="none" stroke="#15191B" stroke-width="112" stroke-linecap="round"/><circle cx="714" cy="256" r="72" fill="#3BE29B"/></svg>
+        <img src="brand/logo/icon.svg" width="24" height="24" alt="" decoding="async">
         uNotch
       </a>
       <a href="https://github.com/SethMed7/unotch">GitHub</a>

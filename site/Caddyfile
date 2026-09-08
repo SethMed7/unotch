@@ -34,8 +34,8 @@
 	@assets path /assets/*
 	header @assets Cache-Control "public, max-age=31536000, immutable"
 
-	# Product icons (from the vendors' own apps) can change; cache them for a week.
-	@logos path /logos/*
+	# Product icons (from the vendors' own apps) and favicons can change; cache them for a week.
+	@logos path /logos/* /favicon.ico /favicon-16.png /favicon-32.png /icon-192.png /apple-touch-icon.png
 	header @logos Cache-Control "public, max-age=604800, stale-while-revalidate=86400"
 
 	@page path / /index.html
