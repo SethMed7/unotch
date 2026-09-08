@@ -126,14 +126,17 @@
     .rail { width: 58px; height: 252px; border-radius: 0 var(--un-r-rail) var(--un-r-rail) 0; background: var(--un-glass-strong); -webkit-backdrop-filter: var(--un-glass-blur); backdrop-filter: var(--un-glass-blur); border: 1px solid var(--un-hairline); border-left: 0; display: flex; flex-direction: column; align-items: center; padding-top: 11px; }
     .ring { width: 50px; height: 56px; display: flex; flex-direction: column; align-items: center; gap: 3px; border-radius: var(--un-r-control); margin-bottom: 10px; }
     .ring.on { background: rgba(244,247,246,0.055); }
-    .ring svg { width: 36px; height: 36px; }
+    .ring .dial { position: relative; width: 36px; height: 36px; display: block; }
+    .ring .dial svg { position: absolute; inset: 0; width: 36px; height: 36px; }
+    .ring .dial img { position: absolute; left: 50%; top: 50%; width: 17px; height: 17px; transform: translate(-50%, -50%); border-radius: 4px; }
+    .ring .disc { fill: rgba(0,0,0,0.08); }
+    .ring.on .disc { fill: rgba(244,247,246,0.09); }
     .ring .pct { font: 600 9px/1 var(--un-font-display); font-variant-numeric: tabular-nums; color: var(--un-ink-2); }
     .ring .track { fill: none; stroke: rgba(244,247,246,0.10); stroke-width: 4; }
     .ring .arc { fill: none; stroke: rgba(244,247,246,0.58); stroke-width: 4; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
     .ring.on .arc { stroke: var(--un-mint); }
     .hud:has(#settings:checked) .ring.on { background: transparent; }
     .hud:has(#settings:checked) .ring.on .arc { stroke: rgba(244,247,246,0.58); }
-    .ring .glyph { font: 700 11px/1 var(--un-font-display); fill: var(--un-paper); }
     .footer-rail { margin-top: auto; height: 42px; display: flex; align-items: center; justify-content: center; width: 100%; }
     .gear { width: 28px; height: 28px; border-radius: 50%; background: var(--un-divider); color: var(--un-ink-2); display: grid; place-items: center; opacity: 0; transition: opacity 200ms var(--un-ease-out), transform 200ms var(--un-ease-out), background 120ms; cursor: pointer; }
     .gear svg { width: 12px; height: 12px; }
@@ -144,7 +147,7 @@
     .callout { position: relative; align-self: center; width: 292px; padding: 14px 16px 14px 24px; background: var(--un-glass); -webkit-backdrop-filter: var(--un-glass-blur); backdrop-filter: var(--un-glass-blur); border: 1px solid var(--un-hairline); border-radius: var(--un-r-callout); box-shadow: var(--un-shadow-callout); color: var(--un-ink); }
     .callout::before { content: ""; position: absolute; left: -1px; top: 50%; width: 10px; height: 18px; transform: translate(-100%, -50%); background: var(--un-glass); clip-path: polygon(100% 0, 0 50%, 100% 100%); }
     .callout .head { display: flex; align-items: center; gap: 9px; }
-    .callout .head .logo { width: 22px; height: 22px; border-radius: 6px; background: var(--un-paper); display: grid; place-items: center; color: var(--un-charcoal); font: 700 12px/1 var(--un-font-display); }
+    .callout .head .logo { width: 22px; height: 22px; border-radius: 5px; display: block; }
     .callout .head .title { font: 700 15px/1.2 var(--un-font-display); }
     .callout .head .sub { font: 500 10px/1.2 var(--un-font-body); color: var(--un-ink-2); margin-top: 1px; }
     .callout .refresh { margin-left: auto; width: 26px; height: 24px; border-radius: 50%; background: rgba(244,247,246,0.07); display: grid; place-items: center; color: var(--un-ink-2); }
@@ -223,6 +226,7 @@
     .footer-links a:hover { text-decoration: underline; }
     .footer-row { display: flex; justify-content: space-between; gap: 8px 32px; flex-wrap: wrap; margin-top: 8px; color: var(--ink); }
     .footer-row a { display: inline-block; padding-block: 0.6rem; }
+    .footer .legal { margin-top: 10px; font-size: 12px; color: var(--ink); max-width: 80ch; }
   </style>
 </head>
 <body>
@@ -272,15 +276,15 @@
             <input type="checkbox" id="settings" aria-label="Toggle the settings section in the demo">
             <div class="rail" aria-hidden="true">
               <div class="ring on">
-                <svg viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="16"/><circle class="arc" cx="18" cy="18" r="16" stroke-dasharray="100.5" stroke-dashoffset="34.2" pathLength="100.5"/><text class="glyph" x="18" y="22" text-anchor="middle">C</text></svg>
+                <span class="dial"><svg viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="16"/><circle class="arc" cx="18" cy="18" r="16" stroke-dasharray="100.5" stroke-dashoffset="34.2" pathLength="100.5"/><circle class="disc" cx="18" cy="18" r="12"/></svg><img src="logos/claude.png" width="17" height="17" alt="" decoding="async"></span>
                 <span class="pct">66%</span>
               </div>
               <div class="ring">
-                <svg viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="16"/><circle class="arc" cx="18" cy="18" r="16" stroke-dasharray="100.5" stroke-dashoffset="59.3" pathLength="100.5"/><text class="glyph" x="18" y="22" text-anchor="middle">X</text></svg>
+                <span class="dial"><svg viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="16"/><circle class="arc" cx="18" cy="18" r="16" stroke-dasharray="100.5" stroke-dashoffset="59.3" pathLength="100.5"/><circle class="disc" cx="18" cy="18" r="12"/></svg><img src="logos/codex.png" width="17" height="17" alt="" decoding="async"></span>
                 <span class="pct">41%</span>
               </div>
               <div class="ring">
-                <svg viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="16"/><circle class="arc" cx="18" cy="18" r="16" stroke-dasharray="100.5" stroke-dashoffset="7" pathLength="100.5"/><text class="glyph" x="18" y="22" text-anchor="middle">▲</text></svg>
+                <span class="dial"><svg viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="16"/><circle class="arc" cx="18" cy="18" r="16" stroke-dasharray="100.5" stroke-dashoffset="7" pathLength="100.5"/><circle class="disc" cx="18" cy="18" r="12"/></svg><img src="logos/cursor.png" width="17" height="17" alt="" decoding="async"></span>
                 <span class="pct">93%</span>
               </div>
               <div class="footer-rail">
@@ -292,7 +296,7 @@
 
             <div class="callout usage" aria-hidden="true">
               <div class="head">
-                <div class="logo">C</div>
+                <img class="logo" src="logos/claude.png" width="22" height="22" alt="" decoding="async">
                 <div><div class="title">Claude usage</div><div class="sub">Updated 2 minutes ago</div></div>
                 <div class="refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg></div>
               </div>
@@ -408,6 +412,7 @@ spctl --assess --type open \
         <p class="mono">© 2026 <a href="https://sethmedina.com">Seth Medina</a> · Orlando, Florida · MIT License</p>
         <p class="mono">Backdrop made with <a href="https://aetheria.sethmedina.com" rel="noopener">Aetheria</a> · Built with HTML and Caddy · No trackers</p>
       </div>
+      <p class="mono legal">Claude, ChatGPT, Codex, and Cursor are trademarks of their respective owners. uNotch is an independent project and is not affiliated with Anthropic, OpenAI, or Anysphere.</p>
     </div>
   </footer>
 </body>

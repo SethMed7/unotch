@@ -34,6 +34,10 @@
 	@assets path /assets/*
 	header @assets Cache-Control "public, max-age=31536000, immutable"
 
+	# Product icons (from the vendors' own apps) can change; cache them for a week.
+	@logos path /logos/*
+	header @logos Cache-Control "public, max-age=604800, stale-while-revalidate=86400"
+
 	@page path / /index.html
 	header @page Cache-Control "public, max-age=300, must-revalidate"
 
