@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_dir="${0:A:h}"
 repo_root="${script_dir:h}"
-version="${VERSION:-1.2.0}"
+version="${VERSION:-1.2.1}"
 build_number="${BUILD_NUMBER:-1}"
 target_arch="${ARCH:-arm64}"
 developer_id="${APPLE_SIGNING_IDENTITY:-}"
