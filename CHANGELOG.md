@@ -6,7 +6,10 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-09-10
+
 ### Changed
+- T3 Code uses the canonical logo through the checked-in project configuration.
 - The logo now depicts a screen with a notch tucked into its left edge, across
   the app icon, menu bar, settings, website, and favicons.
 - Link previews now show a designed share card with the tagline and usage HUD,
