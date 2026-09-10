@@ -40,6 +40,17 @@ UNOTCH_SNAPSHOT=/tmp/hud.png UNOTCH_SETTINGS_SNAPSHOT=/tmp/settings.png swift te
 
 The website is `site/index.html`; `scripts/build-site.sh` assembles it with the
 brand tokens into `_site/` for a local preview (`python3 -m http.server -d _site`).
+Logo geometry lives in `brand/logo/`. After changing it, update the matching
+Swift paths and regenerate the web exports with `scripts/generate-favicons.sh`
+(requires ImageMagick). The app icon is generated during DMG packaging.
+
+The share card's editable layout is `brand/social/card.html`. It borrows the
+website's HUD and styles when rendered with `scripts/generate-social.sh`
+(requires Python 3, Playwright CLI with Chromium, and ImageMagick; render on macOS
+for the system font). The PNG is committed, so deployment needs no renderer.
+When changing it, choose a new filename in the generator and both image meta
+tags in `site/index.html` because `/assets/` has immutable caching.
+
 To test exactly what production serves, build the image from the repo root:
 
 ```sh

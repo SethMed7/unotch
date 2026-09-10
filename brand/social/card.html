@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1200, initial-scale=1">
+  <title>uNotch social preview</title>
+  <link rel="stylesheet" href="brand/tokens.css">
+  <style>
+    {{SITE_STYLES}}
+    /* Fixed artboard for the exported image, not a responsive page. */
+    html, body { width: 1200px; height: 630px; overflow: hidden; }
+    body { background: #B7C9C1; color: var(--un-charcoal); }
+    .share-backdrop { position: absolute; inset: 0; z-index: -1; opacity: .22; }
+    .share-backdrop img { width: 100%; height: 100%; object-fit: cover; }
+    .share-brand { position: absolute; top: 54px; left: 60px; display: flex; align-items: center; gap: 14px; font: 600 36px/1 var(--un-font-display); letter-spacing: -.02em; }
+    .share-brand img { width: 62px; height: 62px; }
+    .share-url { position: absolute; top: 74px; right: 64px; font-size: 18px; color: var(--un-ash); }
+    .share-heading { position: absolute; top: 166px; left: 64px; width: 526px; font: 600 62px/1.04 var(--un-font-display); letter-spacing: -.025em; text-wrap: initial; }
+    .share-providers { position: absolute; top: 456px; left: 64px; font-size: 22px; line-height: 1.5; color: var(--un-ash); }
+    .share-screen { position: absolute; top: 168px; left: 620px; width: 516px; height: 336px; min-height: 0; border: 2px solid var(--un-charcoal); border-radius: 22px; }
+    .share-screen > img { object-position: 30% 50%; }
+    .share-screen .hud-wrap { width: 429.6px; height: 302.4px; }
+    .share-screen .hud { transform: scale(1.2); transform-origin: left top; }
+    .share-screen .gear span { opacity: 1; }
+    .share-screen .row .r { color: var(--un-ink-2); }
+    .share-sample { position: absolute; top: 512px; right: 64px; font-size: 13px; color: var(--un-ash); }
+    .share-footer { position: absolute; bottom: 42px; left: 64px; right: 64px; display: flex; justify-content: space-between; align-items: baseline; padding-top: 19px; border-top: 1px solid rgba(21,25,27,.2); font-size: 19px; line-height: 1.2; }
+    .share-footer strong { font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="share-backdrop" aria-hidden="true"><img src="assets/aetheria-emerald-805214-1440.webp" alt=""></div>
+  <div class="share-brand"><img src="brand/logo/icon.svg" alt="">uNotch</div>
+  <p class="share-url">unotch.sethmedina.com</p>
+  <h1 class="share-heading">Live AI usage,<br>quietly tucked<br>into the edge<br>of your Mac.</h1>
+  <p class="share-providers">Claude · Codex · Cursor Agent</p>
+  <div class="desk share-screen" aria-label="The uNotch usage HUD tucked into the left edge of a screen">
+    <img src="assets/aetheria-emerald-805214-1440.webp" alt="">
+    {{HUD}}
+  </div>
+  <p class="share-sample">Illustrative usage</p>
+  <div class="share-footer"><strong>Free &amp; open source</strong><span>macOS 14+ · Apple silicon</span></div>
+</body>
+</html>

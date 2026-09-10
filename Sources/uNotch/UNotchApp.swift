@@ -154,28 +154,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 }
 
-/// Menu bar mark: the brand geometry as a template image so macOS tints it.
-/// The status point is drawn in the same ink here by design (see brand/BRAND.md).
+/// The shared screen-and-notch paths as a template image that macOS tints.
 private enum MenuBarLogo {
     static func makeImage() -> NSImage {
         let side: CGFloat = 18
         let image = NSImage(size: NSSize(width: side, height: side), flipped: true) { rect in
-            let s = side / 1024
-            func p(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: x * s, y: y * s) }
-
-            NSColor.black.setStroke()
-            NSColor.black.setFill()
-            let mark = NSBezierPath()
-            mark.lineWidth = max(1.8, 84 * s * 1.3)
-            mark.lineCapStyle = .round
-            mark.move(to: p(310, 308))
-            mark.line(to: p(310, 558))
-            mark.curve(to: p(714, 558), controlPoint1: p(310, 760), controlPoint2: p(714, 760))
-            mark.line(to: p(714, 308))
-            mark.stroke()
-
-            let r = max(1.1, 39 * s * 1.5)
-            NSBezierPath(ovalIn: NSRect(x: 714 * s - r, y: 256 * s - r, width: r * 2, height: r * 2)).fill()
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            context.setStrokeColor(NSColor.black.cgColor)
+            context.setFillColor(NSColor.black.cgColor)
+            context.setLineWidth(max(1.25, 64 * side / 1024))
+            context.addPath(BrandMarkShape().path(in: rect).cgPath)
+            context.strokePath()
+            context.addPath(BrandNotchShape().path(in: rect).cgPath)
+            context.fillPath()
             return true
         }
         image.isTemplate = true

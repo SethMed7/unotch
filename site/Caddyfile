@@ -30,7 +30,7 @@
 	@brand path /brand/*
 	header @brand Cache-Control "public, max-age=604800, stale-while-revalidate=86400"
 
-	# Backdrop renders carry their seed in the file name; a new render is a new URL.
+	# Backdrops and social cards use versioned file names; changed pixels need a new URL.
 	@assets path /assets/*
 	header @assets Cache-Control "public, max-age=31536000, immutable"
 

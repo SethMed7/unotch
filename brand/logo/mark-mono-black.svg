@@ -1,5 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
-  <title id="title">uNotch mark, monochrome black</title>
-  <path d="M310 308v250c0 126 90 206 202 206s202-80 202-206V308" fill="none" stroke="#000000" stroke-width="84" stroke-linecap="round"/>
-  <circle cx="714" cy="256" r="39" fill="#000000"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">uNotch</title>
+  <desc id="desc">A screen with a notch tucked into its left edge.</desc>
+  <rect x="176" y="256" width="672" height="512" rx="80" fill="none" stroke="#000000" stroke-width="64"/>
+  <path d="M144 392h136c31 0 56 25 56 56v128c0 31-25 56-56 56H144Z" fill="#000000"/>
 </svg>

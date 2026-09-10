@@ -6,6 +6,12 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The logo now depicts a screen with a notch tucked into its left edge, across
+  the app icon, menu bar, settings, website, and favicons.
+- Link previews now show a designed share card with the tagline and usage HUD,
+  with complete Open Graph and Twitter image metadata.
+
 ## [1.2.0] — 2026-09-07
 
 ### Added

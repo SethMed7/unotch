@@ -22,23 +22,36 @@ One word to keep in mind while designing: *tucked*.
 
 ## Mark
 
-The mark is a **u-shaped notch** with a **status point** at its top-right terminal.
+The mark is a **screen with a side notch**: a rounded rectangular screen outline
+with a solid mint rail extending inward from its left edge. It describes the
+actual app placement, with no letterform or detached status dot.
 Geometry lives on a 1024 grid (see `logo/mark.svg`):
 
-- Stroke 84, round caps; the arms rise from y=308 to the bowl at y=558.
-- The status point is a 78 px circle centred at (714, 256) — it sits *above* the
-  right arm, like a light on a rail.
+- Screen: (176, 256), 672 × 512, corner radius 80, stroke 64.
+- Side notch: x=144–336, y=392–632; flush left edge and 56 px inner corners.
+  Its left edge aligns with the outside of the screen stroke.
 - Tile variant (`logo/icon.svg`): charcoal rounded square (radius 205 on 928),
-  paper mark, mint point. This is the macOS app icon and the social avatar.
-- Mono variants (`logo/mark-mono-black.svg`, `logo/mark-mono-white.svg`) drop the
-  colour and render the point in the same ink. Use them for print, favicons in
-  monochrome contexts, and the menu bar.
-- **Menu bar**: the mark is always a macOS *template* image (system tints it).
-  Never draw the mint point in colour in the menu bar.
+  paper screen, mint notch. This is the macOS app icon and the social avatar.
+- Favicon: the same mark on a full-bleed charcoal tile (radius 224 on 1024).
+- Mono variants (`logo/mark-mono-black.svg`, `logo/mark-mono-white.svg`) render
+  the screen and notch in the same ink.
+- **Menu bar**: always a macOS *template* image (system tints it). Never draw
+  the mint notch in colour in the menu bar.
 
-Clear space: keep at least one stroke width (84/1024 of the mark height) free
-around the mark. Minimum size: 16 px (the 16 px mono render is the survival floor —
-if the point disappears at 16 px, the mark has been drawn wrong).
+Clear space: keep at least one stroke width (64/1024 of the mark height) free
+around the mark. Minimum size: 16 px. The screen and attached side notch must
+remain distinct at that size; never omit the notch.
+
+## Social preview
+
+The share card is a 1200 × 630 PNG, composed in `social/card.html` and rendered
+with `scripts/generate-social.sh`. It uses the backdrop ground, charcoal type,
+the existing tagline, the new icon, and a screen showing the actual site HUD
+with illustrative usage values. Provider names, free/open-source status, and
+macOS requirements come from the site. Keep primary content 64 px from the
+card edges. Use a new versioned image filename whenever its pixels change,
+since `/assets/` is cached immutably. Open Graph and Twitter metadata must
+reference the same absolute PNG URL, with dimensions and descriptive alt text.
 
 ## Colour
 
@@ -49,10 +62,10 @@ if the point disappears at 16 px, the mark has been drawn wrong).
 | `ash` | `#2A3135` | Hairlines and dividers on dark. |
 | `smoke` | `#8B9498` | Secondary text on dark (5.7:1 on charcoal). |
 | `paper` | `#F4F7F6` | Primary text on dark; the mark itself. |
-| `mint` | `#3BE29B` | **The status point.** The only accent. |
+| `mint` | `#3BE29B` | **The live signal.** Side notch, status point, and remaining usage. |
 
 **The Status Point Rule.** Mint is a signal, not a theme. It appears where there is
-live state or the primary action: the point on the mark, the "remaining" fill of the
+live state or the primary action: the side notch on the mark, the "remaining" fill of the
 selected provider, the one primary action on a page (it may repeat — a download
 button at the top and bottom — but it is always the *same* action). Never on
 headings, borders, bullets, backgrounds, or decoration. If a screen has mint on two

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-07T21:00:00Z",
+  "generatedAt": "2026-09-09T23:55:00Z",
   "title": "Design System: uNotch",
   "extensions": {
     "colorMeta": {
@@ -33,6 +33,8 @@
     ]
   },
   "components": [
+    {"name": "Brand Mark", "kind": "image", "description": "The mark is a **screen with a side notch**: a rounded rectangular screen outline\nwith a solid mint rail extending inward from its left edge. It describes the\nactual app placement, with no letterform or detached status dot.\nGeometry lives on a 1024 grid (see `logo/mark.svg`):\n\n- Screen: (176, 256), 672 × 512, corner radius 80, stroke 64.\n- Side notch: x=144–336, y=392–632; flush left edge and 56 px inner corners.\n  Its left edge aligns with the outside of the screen stroke.\n- Tile variant (`logo/icon.svg`): charcoal rounded square (radius 205 on 928),\n  paper screen, mint notch. This is the macOS app icon and the social avatar.\n- Favicon: the same mark on a full-bleed charcoal tile (radius 224 on 1024).\n- Mono variants (`logo/mark-mono-black.svg`, `logo/mark-mono-white.svg`) render\n  the screen and notch in the same ink.\n- **Menu bar**: always a macOS *template* image (system tints it). Never draw\n  the mint notch in colour in the menu bar.\n\nClear space: keep at least one stroke width (64/1024 of the mark height) free\naround the mark. Minimum size: 16 px. The screen and attached side notch must\nremain distinct at that size; never omit the notch.", "html": "<img src=\"brand/logo/icon.svg\" width=\"32\" height=\"32\" alt=\"uNotch\">", "css": ""},
+    {"name": "Social Preview", "kind": "image", "description": "The share card is a 1200 × 630 PNG, composed in `social/card.html` and rendered\nwith `scripts/generate-social.sh`. It uses the backdrop ground, charcoal type,\nthe existing tagline, the new icon, and a screen showing the actual site HUD\nwith illustrative usage values. Provider names, free/open-source status, and\nmacOS requirements come from the site. Keep primary content 64 px from the\ncard edges. Use a new versioned image filename whenever its pixels change,\nsince `/assets/` is cached immutably. Open Graph and Twitter metadata must\nreference the same absolute PNG URL, with dimensions and descriptive alt text.", "html": "<img src=\"assets/unotch-social-v2.png\" width=\"1200\" height=\"630\" alt=\"uNotch — Live AI usage, quietly tucked into the edge of your Mac.\">", "css": ""},
     {
       "name": "Primary Button",
       "kind": "button",
@@ -84,7 +86,7 @@
   ],
   "narrative": {
     "northStar": "Tucked",
-    "overview": "uNotch is a quiet instrument. It lives at the edge of a Mac screen as a seven-point cue and only becomes a readout when the pointer asks. Everything in the system follows from that posture: dark glass that borrows the desktop behind it, ink that is paper at opacity rather than fixed grey, and one accent — the mint status point from the logo — that appears only where something is live or where the user acts. The system is native first: SF Rounded numerals, the system text face, NSVisualEffectView glass, and no loaded web fonts or third-party requests anywhere, on the app or on the site.\n\nThe system explicitly rejects the \"AI tool\" landing-page look: purple-to-blue gradients, neon glows, card grids of features, floating blobs, eyebrow caps labels over every heading, and marketing verbs. It also rejects dashboard density. uNotch shows a handful of numbers; each one gets room.",
+    "overview": "uNotch is a quiet instrument. It lives at the edge of a Mac screen as a seven-point cue and only becomes a readout when the pointer asks. Everything in the system follows from that posture: dark glass that borrows the desktop behind it, ink that is paper at opacity rather than fixed grey, and one accent — the mint side notch in the logo — that appears only where something is live or where the user acts. The system is native first: SF Rounded numerals, the system text face, NSVisualEffectView glass, and no loaded web fonts or third-party requests anywhere, on the app or on the site.\n\nThe system explicitly rejects the \"AI tool\" landing-page look: purple-to-blue gradients, neon glows, card grids of features, floating blobs, eyebrow caps labels over every heading, and marketing verbs. It also rejects dashboard density. uNotch shows a handful of numbers; each one gets room.",
     "keyCharacteristics": [
       "Dark glass surfaces tinted charcoal; depth from tint, never from stacked shadows",
       "One accent (mint) rationed to live state and the single primary action",
@@ -116,10 +118,10 @@
       "Don't put features in a grid of cards. Rows with hairlines.",
       "Don't add eyebrow caps labels above headings.",
       "Don't add a second shadow anywhere; the callout is the only surface that casts one.",
-      "Don't colour the mint point in the menu bar; the menu bar mark is a template image.",
+      "Don't colour the mint notch in the menu bar; the menu bar mark is a template image.",
       "Don't use the words seamless, powerful, supercharge, empower, or effortless.",
       "Don't load a web font. If the display face is unavailable, the system face is correct.",
-      "Don't let the mark shrink below 16 px or draw it without the status point."
+      "Don't let the mark shrink below 16 px or draw it without the attached side notch."
     ]
   }
 }
