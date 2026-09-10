@@ -131,7 +131,7 @@ components:
 ---
 
 <!--
-  GENERATED from brand/BRAND.md + brand/tokens.json (2026-09-07, backdrop surface added).
+  GENERATED from brand/BRAND.md + brand/tokens.json (2026-09-09, screen-and-notch mark and share card).
   The brand folder is the canon and wins any conflict with this file.
   REGENERATE this file when the canon changes — never hand-edit it.
 -->
@@ -145,7 +145,7 @@ components:
 uNotch is a quiet instrument. It lives at the edge of a Mac screen as a seven-point cue and
 only becomes a readout when the pointer asks. Everything in the system follows from that
 posture: dark glass that borrows the desktop behind it, ink that is paper at opacity rather
-than fixed grey, and one accent — the mint status point from the logo — that appears only
+than fixed grey, and one accent — the mint side notch in the logo — that appears only
 where something is live or where the user acts. The system is native first: SF Rounded
 numerals, the system text face, `NSVisualEffectView` glass, and no loaded web fonts or
 third-party requests anywhere, on the app or on the site.
@@ -174,7 +174,7 @@ A charcoal ground, paper ink, and a single mint signal.
 
 ### Primary
 - **Mint** (#3BE29B): the status point. The "remaining" fill of the selected provider ring
-  and bars, the point on the mark, and the one primary button on a page. 10.5:1 on charcoal.
+  and bars, the side notch on the mark, and the one primary button on a page. 10.5:1 on charcoal.
 
 ### Neutral
 - **Charcoal** (#15191B): brand ground for the product — icon tile, the tint under glass — and
@@ -248,6 +248,40 @@ never thicker than 1 px.
 
 ## 5. Components
 
+### Brand mark
+
+The mark is a **screen with a side notch**: a rounded rectangular screen outline
+with a solid mint rail extending inward from its left edge. It describes the
+actual app placement, with no letterform or detached status dot.
+Geometry lives on a 1024 grid (see `logo/mark.svg`):
+
+- Screen: (176, 256), 672 × 512, corner radius 80, stroke 64.
+- Side notch: x=144–336, y=392–632; flush left edge and 56 px inner corners.
+  Its left edge aligns with the outside of the screen stroke.
+- Tile variant (`logo/icon.svg`): charcoal rounded square (radius 205 on 928),
+  paper screen, mint notch. This is the macOS app icon and the social avatar.
+- Favicon: the same mark on a full-bleed charcoal tile (radius 224 on 1024).
+- Mono variants (`logo/mark-mono-black.svg`, `logo/mark-mono-white.svg`) render
+  the screen and notch in the same ink.
+- **Menu bar**: always a macOS *template* image (system tints it). Never draw
+  the mint notch in colour in the menu bar.
+
+Clear space: keep at least one stroke width (64/1024 of the mark height) free
+around the mark. Minimum size: 16 px. The screen and attached side notch must
+remain distinct at that size; never omit the notch.
+
+### Social preview
+
+The share card is a 1200 × 630 PNG, composed in `social/card.html` and rendered
+with `scripts/generate-social.sh`. It uses the backdrop ground, charcoal type,
+the existing tagline, the new icon, and a screen showing the actual site HUD
+with illustrative usage values. Provider names, free/open-source status, and
+macOS requirements come from the site. Keep primary content 64 px from the
+card edges. Use a new versioned image filename whenever its pixels change,
+since `/assets/` is cached immutably. Open Graph and Twitter metadata must
+reference the same absolute PNG URL, with dimensions and descriptive alt text.
+
+
 ### Buttons
 - **Shape:** pill (999px) on the site; rounded control (11px) inside the HUD.
 - **Primary (dark glass):** mint fill, charcoal text, 600 weight, 12px 20px padding, 44px
@@ -320,9 +354,9 @@ never thicker than 1 px.
 - **Don't** put features in a grid of cards. Rows with hairlines.
 - **Don't** add eyebrow caps labels above headings.
 - **Don't** add a second shadow anywhere; the callout is the only surface that casts one.
-- **Don't** colour the mint point in the menu bar; the menu bar mark is a template image.
+- **Don't** colour the mint notch in the menu bar; the menu bar mark is a template image.
 - **Don't** use the words seamless, powerful, supercharge, empower, or effortless.
 - **Don't** load a web font. If the display face is unavailable, the system face is correct.
 - **Don't** put ash or slate text over a strong backdrop layer; full charcoal only (The
   Strong-Layer Rule). Don't fade the render with painted scrims — they seam against the ambient.
-- **Don't** let the mark shrink below 16 px or draw it without the status point.
+- **Don't** let the mark shrink below 16 px or draw it without the attached side notch.

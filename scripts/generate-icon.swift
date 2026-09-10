@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 
 // Renders the app icon from the brand geometry in brand/logo/icon.svg
-// (1024 grid, charcoal tile, paper mark, mint status point). brand/BRAND.md is canon.
+// (1024 grid, charcoal tile, paper screen, mint side notch). brand/BRAND.md is canon.
 
 guard CommandLine.arguments.count == 2 else {
     fputs("usage: swift generate-icon.swift <AppIcon.iconset>\n", stderr)
@@ -67,30 +67,31 @@ func renderIcon(pixels: Int) throws -> Data {
     NSColor(red: 0.082, green: 0.098, blue: 0.106, alpha: 1).setFill()
     tile.fill()
 
-    let mark = NSBezierPath()
-    mark.lineWidth = scaled(84, by: scale)
-    mark.lineCapStyle = .round
-    mark.move(to: NSPoint(x: scaled(310, by: scale), y: scaled(716, by: scale)))
-    mark.line(to: NSPoint(x: scaled(310, by: scale), y: scaled(466, by: scale)))
-    mark.curve(
-        to: NSPoint(x: scaled(714, by: scale), y: scaled(466, by: scale)),
-        controlPoint1: NSPoint(x: scaled(310, by: scale), y: scaled(264, by: scale)),
-        controlPoint2: NSPoint(x: scaled(714, by: scale), y: scaled(264, by: scale))
+    let screen = NSBezierPath(
+        roundedRect: NSRect(
+            x: scaled(176, by: scale), y: scaled(256, by: scale),
+            width: scaled(672, by: scale), height: scaled(512, by: scale)
+        ),
+        xRadius: scaled(80, by: scale), yRadius: scaled(80, by: scale)
     )
-    mark.line(to: NSPoint(x: scaled(714, by: scale), y: scaled(716, by: scale)))
-    NSColor(red: 0.96, green: 0.97, blue: 0.97, alpha: 1).setStroke()
-    mark.stroke()
+    screen.lineWidth = scaled(64, by: scale)
+    NSColor(red: 244.0 / 255, green: 247.0 / 255, blue: 246.0 / 255, alpha: 1).setStroke()
+    screen.stroke()
 
-    let status = NSBezierPath(
-        ovalIn: NSRect(
-            x: scaled(675, by: scale),
-            y: scaled(729, by: scale),
-            width: scaled(78, by: scale),
-            height: scaled(78, by: scale)
-        )
-    )
-    NSColor(red: 0.231, green: 0.886, blue: 0.608, alpha: 1).setFill()
-    status.fill()
+    // AppKit's y axis is inverted relative to the SVG's top-left origin.
+    func p(_ x: CGFloat, _ y: CGFloat) -> NSPoint {
+        NSPoint(x: x * scale, y: (1024 - y) * scale)
+    }
+    let notch = NSBezierPath()
+    notch.move(to: p(144, 392))
+    notch.line(to: p(280, 392))
+    notch.curve(to: p(336, 448), controlPoint1: p(311, 392), controlPoint2: p(336, 417))
+    notch.line(to: p(336, 576))
+    notch.curve(to: p(280, 632), controlPoint1: p(336, 607), controlPoint2: p(311, 632))
+    notch.line(to: p(144, 632))
+    notch.close()
+    NSColor(red: 59.0 / 255, green: 226.0 / 255, blue: 155.0 / 255, alpha: 1).setFill()
+    notch.fill()
 
     guard let data = bitmap.representation(using: .png, properties: [:]) else {
         throw CocoaError(.fileWriteUnknown)

@@ -48,43 +48,51 @@ enum AppInfo {
     }
 }
 
-/// The brand mark drawn in code so the menu bar, HUD, and icon share one geometry.
-/// Coordinates follow the 1024 grid in `brand/logo/mark.svg`.
+/// The screen and side notch use the 1024 grid in `brand/logo/mark.svg`.
+/// MenuBarLogo also draws these paths so the template and HUD stay consistent.
 struct BrandMarkShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 1024
+        let origin = CGPoint(x: rect.midX - 512 * s, y: rect.midY - 512 * s)
+        return Path(roundedRect: CGRect(
+            x: origin.x + 176 * s, y: origin.y + 256 * s,
+            width: 672 * s, height: 512 * s
+        ), cornerRadius: 80 * s)
+    }
+}
+
+struct BrandNotchShape: Shape {
     func path(in rect: CGRect) -> Path {
         let s = min(rect.width, rect.height) / 1024
         let ox = rect.midX - 512 * s
         let oy = rect.midY - 512 * s
-        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: ox + x * s, y: oy + y * s) }
-
+        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: ox + x * s, y: oy + y * s)
+        }
         var path = Path()
-        path.move(to: p(310, 308))
-        path.addLine(to: p(310, 558))
-        path.addCurve(to: p(714, 558), control1: p(310, 760), control2: p(714, 760))
-        path.addLine(to: p(714, 308))
+        path.move(to: p(144, 392))
+        path.addLine(to: p(280, 392))
+        path.addCurve(to: p(336, 448), control1: p(311, 392), control2: p(336, 417))
+        path.addLine(to: p(336, 576))
+        path.addCurve(to: p(280, 632), control1: p(336, 607), control2: p(311, 632))
+        path.addLine(to: p(144, 632))
+        path.closeSubpath()
         return path
     }
 }
 
 struct BrandMark: View {
     var ink: Color = Brand.paper
-    var point: Color = Brand.mint
+    var notch: Color = Brand.mint
 
     var body: some View {
         GeometryReader { proxy in
-            let side = min(proxy.size.width, proxy.size.height)
-            let s = side / 1024
-            // Optical floor: below ~48 pt the point and stroke thin out, so clamp them
-            // (BRAND.md: "if the point disappears at 16 px, the mark has been drawn wrong").
-            let stroke = max(84 * s, 1.6)
-            let radius = max(39 * s, 1.4)
+            let s = min(proxy.size.width, proxy.size.height) / 1024
             ZStack {
                 BrandMarkShape()
-                    .stroke(ink, style: StrokeStyle(lineWidth: stroke, lineCap: .round))
-                Circle()
-                    .fill(point)
-                    .frame(width: radius * 2, height: radius * 2)
-                    .position(x: proxy.size.width / 2 + (714 - 512) * s, y: proxy.size.height / 2 + (256 - 512) * s)
+                    .stroke(ink, lineWidth: max(64 * s, 1.25))
+                BrandNotchShape()
+                    .fill(notch)
             }
         }
         .accessibilityHidden(true)
