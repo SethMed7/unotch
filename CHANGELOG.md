@@ -6,6 +6,17 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.2.2] — 2026-09-15
+
+### Changed
+- Cursor usage now shows **Cursor Models**, **Other Models**, and **Grok Bot**,
+  matching the dashboard. Those numbers come from Cursor's free dashboard usage
+  RPCs using the local Agent session; the Agent `/usage` screen remains the
+  fallback if the session token is unavailable.
+- Claude usage includes the weekly **Fable** limit alongside the 5-hour and
+  all-models weekly windows.
+- Codex usage notes banked **resets available** when the account has any.
+
 ## [1.2.1] — 2026-09-10
 
 ### Changed
@@ -64,7 +75,9 @@ All notable changes to uNotch are recorded here. The format follows
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/SethMed7/unotch/compare/v1.2.1...v1.2.2
+[1.2.1]: https://github.com/SethMed7/unotch/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/SethMed7/unotch/compare/v1.0.0...v1.2.0
 [1.1.0]: https://github.com/SethMed7/unotch/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/SethMed7/unotch/releases/tag/v1.0.0

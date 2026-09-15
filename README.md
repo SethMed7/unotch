@@ -30,9 +30,9 @@ dashboard window and no Dock icon.
 
 | Provider | Local source | Usage shown |
 | --- | --- | --- |
-| Claude | Claude Code CLI `/usage` | 5-hour and weekly limits |
-| Codex | Codex app-server rate limits | Available plan windows |
-| Cursor | Cursor Agent CLI `/usage` | Monthly included usage |
+| Claude | Claude Code CLI `/usage` | 5-hour, weekly, and Fable limits |
+| Codex | Codex app-server rate limits | Plan windows, plus banked resets when any remain |
+| Cursor | Cursor dashboard usage RPCs (Agent `/usage` fallback) | Cursor Models, Other Models, and Grok Bot |
 
 All usage is read from command-line tools already authenticated on your Mac.
 uNotch does not ask for, copy, or store provider credentials. Only the providers
@@ -74,8 +74,9 @@ The saved edge and vertical position are restored on the next launch.
 - Raw CLI errors are discarded so account identifiers and local paths are not
   exposed in the interface.
 - Only the screen edge and vertical position are stored in macOS preferences.
-- The only network request uNotch ever makes is the one you trigger with
-  **Update & Restart**; it talks to GitHub Releases and nothing else.
+- Network use is **Update & Restart** (GitHub Releases, only when you click it)
+  and Cursor dashboard usage RPCs that reuse the local Agent session. Those
+  usage endpoints do not run models or spend included usage.
 
 Provider CLIs still use their own network connections, authentication stores,
 and caches. See [PRIVACY.md](PRIVACY.md) for the complete data flow and

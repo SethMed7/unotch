@@ -343,14 +343,14 @@
     <section id="monitors" aria-labelledby="monitors-h">
       <div class="sec-head">
         <h2 id="monitors-h">Three providers, one quiet readout.</h2>
-        <p>Every number comes from a command-line tool that is already signed in on your Mac. uNotch never asks for a key, never stores one, and never phones home. It shows only the providers you actually have installed — with one or two, the rail simply shrinks.</p>
+        <p>Every number comes from a command-line tool that is already signed in on your Mac. uNotch never asks for a key and never stores one. It shows only the providers you actually have installed — with one or two, the rail simply shrinks.</p>
       </div>
       <table>
         <thead><tr><th scope="col">Provider</th><th scope="col">Local source</th><th scope="col">Usage shown</th></tr></thead>
         <tbody>
-          <tr><td>Claude</td><td data-l="Source">Claude Code CLI <code>/usage</code></td><td data-l="Shows">5-hour and weekly limits</td></tr>
-          <tr><td>Codex</td><td data-l="Source">Codex app-server rate limits</td><td data-l="Shows">Available plan windows</td></tr>
-          <tr><td>Cursor</td><td data-l="Source">Cursor Agent CLI <code>/usage</code></td><td data-l="Shows">Monthly included usage</td></tr>
+          <tr><td>Claude</td><td data-l="Source">Claude Code CLI <code>/usage</code></td><td data-l="Shows">5-hour, weekly, and Fable limits</td></tr>
+          <tr><td>Codex</td><td data-l="Source">Codex app-server rate limits</td><td data-l="Shows">Plan windows, plus banked resets when any remain</td></tr>
+          <tr><td>Cursor</td><td data-l="Source">Cursor dashboard usage RPCs</td><td data-l="Shows">Cursor Models, Other Models, and Grok Bot</td></tr>
         </tbody>
       </table>
     </section>
@@ -375,10 +375,10 @@
       </div>
       <ul class="facts">
         <li><span>No analytics, telemetry, advertising, or crash-reporting SDKs.<span class="muted">There is no third-party code in the package at all.</span></span></li>
-        <li><span>No account, cloud service, incoming server, or listening port.<span class="muted">uNotch launches local CLIs and reads their output. That is the whole integration.</span></span></li>
+        <li><span>No account, cloud service, incoming server, or listening port.<span class="muted">uNotch launches local CLIs and reads their output. Cursor usage also reuses the local Agent session for dashboard RPCs.</span></span></li>
         <li><span>CLI output is parsed in memory and never written to disk.<span class="muted">Standard error is discarded so account identifiers and local paths never reach the interface.</span></span></li>
         <li><span>Two preferences are stored: the screen edge and the vertical position.<span class="muted"><code>defaults delete app.unotch.utility</code> removes both.</span></span></li>
-        <li><span>The only network request is the one you click: Update &amp; Restart.<span class="muted">It reads GitHub Releases, verifies the new build is signed by the same Team ID and passes Gatekeeper, then relaunches. Nothing runs on a timer.</span></span></li>
+        <li><span>Network use is Update &amp; Restart, plus Cursor dashboard usage RPCs.<span class="muted">Update &amp; Restart reads GitHub Releases only when you click it. Cursor usage endpoints report plan percentages and do not run models.</span></span></li>
       </ul>
     </section>
 

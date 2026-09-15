@@ -57,9 +57,13 @@ small set of standard local install locations. A local user or process able to
 replace those executables already controls the same user account and can affect
 what uNotch runs.
 
-The Cursor usage reader opens Cursor Agent in a new, private temporary workspace
-with `--trust`, sends only `/usage`, reads the usage screen, exits, and removes
-the workspace. Paths are passed as environment values rather than interpolated
+The Cursor usage reader first tries Cursor's dashboard usage RPCs on
+`api2.cursor.sh` with the `cursor-access-token` already stored in the login
+keychain by Cursor Agent. The token is used as a bearer for that request and
+is not written anywhere. If the keychain item cannot be read, it falls back
+to opening Cursor Agent in a new, private temporary workspace with `--trust`,
+sending only `/usage`, reading the usage screen, exiting, and removing the
+workspace. Paths are passed as environment values rather than interpolated
 into a shell command.
 
 The application is not App Sandbox-enabled because its core function requires

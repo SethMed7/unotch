@@ -11,6 +11,7 @@ enum HUDMetrics {
     static let calloutWidth: CGFloat = 292
     static let usageCalloutHeight: CGFloat = 132
     static let usageCalloutTallHeight: CGFloat = 172
+    static let usageCalloutTripleHeight: CGFloat = 212
     static let settingsCalloutHeight: CGFloat = 188
     static let gap: CGFloat = 8
 
@@ -25,11 +26,23 @@ enum HUDMetrics {
             + railFooterHeight
     }
 
-    /// The panel must hold the rail and the tallest callout (settings), whichever is taller.
+    static func usageCalloutHeight(forLimitCount count: Int) -> CGFloat {
+        switch max(count, 1) {
+        case 1: usageCalloutHeight
+        case 2: usageCalloutTallHeight
+        default: usageCalloutTripleHeight
+        }
+    }
+
+    /// The panel must hold the rail and the tallest callout, whichever is taller.
     static func expandedSize(providerCount: Int) -> CGSize {
         CGSize(
             width: railWidth + gap + calloutWidth,
-            height: max(railHeight(providerCount: providerCount), settingsCalloutHeight)
+            height: max(
+                railHeight(providerCount: providerCount),
+                settingsCalloutHeight,
+                usageCalloutTripleHeight
+            )
         )
     }
 }
@@ -263,9 +276,7 @@ private struct ExpandedNotchView: View {
 
     private var calloutHeight: CGFloat {
         if state.isSettingsOpen { return HUDMetrics.settingsCalloutHeight }
-        return monitor.snapshot.limits.count > 1
-            ? HUDMetrics.usageCalloutTallHeight
-            : HUDMetrics.usageCalloutHeight
+        return HUDMetrics.usageCalloutHeight(forLimitCount: monitor.snapshot.limits.count)
     }
 
     private var rail: some View {
@@ -411,22 +422,24 @@ private struct UsageLimitRow: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Brand.ink2)
                 Spacer()
-                Text("\(limit.remainingPercent)% remaining")
+                Text(limit.valueText ?? "\(limit.remainingPercent)% remaining")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(Brand.ink)
             }
 
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Brand.paper.opacity(0.12))
-                    Capsule()
-                        .fill(Brand.mint)
-                        .frame(width: max(5, proxy.size.width * limit.remainingFraction))
-                        .animation(Brand.fill, value: limit.remainingFraction)
+            if limit.showsMeter {
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Brand.paper.opacity(0.12))
+                        Capsule()
+                            .fill(Brand.mint)
+                            .frame(width: max(5, proxy.size.width * limit.remainingFraction))
+                            .animation(Brand.fill, value: limit.remainingFraction)
+                    }
                 }
+                .frame(height: 6)
             }
-            .frame(height: 6)
 
             if let resetText = limit.resetText {
                 Text(resetText)

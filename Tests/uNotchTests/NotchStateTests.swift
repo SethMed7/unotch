@@ -33,26 +33,77 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(snapshot.limits[1].remainingFraction, 0.41, accuracy: 0.000_001)
     }
 
+    func testCodexParserShowsBankedResetsWhenAvailable() throws {
+        let data = Data(#"{"id":2,"result":{"rateLimits":{"primary":{"usedPercent":62,"windowDurationMins":10080,"resetsAt":1800000000},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":{"availableCount":1}}}"#.utf8)
+        let snapshot = try UsageCLIParser.codex(data)
+        XCTAssertEqual(snapshot.limits.map(\.label), ["Weekly limit", "Resets available"])
+        XCTAssertEqual(snapshot.limits[1].valueText, "1 available")
+        XCTAssertFalse(snapshot.limits[1].showsMeter)
+        XCTAssertFalse(snapshot.limits[1].contributesToSummary)
+        XCTAssertEqual(snapshot.remainingPercent, 38)
+    }
+
+    func testCodexParserHidesBankedResetsWhenNoneRemain() throws {
+        let data = Data(#"{"id":2,"result":{"rateLimits":{"primary":{"usedPercent":10,"windowDurationMins":10080,"resetsAt":1800000000},"secondary":null},"rateLimitResetCredits":{"availableCount":0}}}"#.utf8)
+        let snapshot = try UsageCLIParser.codex(data)
+        XCTAssertEqual(snapshot.limits.map(\.label), ["Weekly limit"])
+    }
+
     func testClaudeUsageParserReadsAllModelsWeeklyLimit() throws {
         let result = "Current session: 34% used · resets today\nCurrent week (all models): 36% used · resets Sep 9 at 11am (UTC)\nCurrent week (Fable): 69% used"
         let encoded = try JSONSerialization.data(withJSONObject: ["result": result])
         let snapshot = try UsageCLIParser.claude(encoded)
-        XCTAssertEqual(snapshot.limits.map(\.label), ["5-hour limit", "Weekly limit"])
+        XCTAssertEqual(snapshot.limits.map(\.label), ["5-hour limit", "Weekly limit", "Fable"])
         XCTAssertEqual(snapshot.limits[0].remainingFraction, 0.66, accuracy: 0.000_001)
         XCTAssertEqual(snapshot.limits[1].remainingFraction, 0.64, accuracy: 0.000_001)
         XCTAssertEqual(snapshot.limits[1].resetDescription, "Resets Sep 9 at 11am (UTC)")
+        XCTAssertEqual(snapshot.limits[2].remainingFraction, 0.31, accuracy: 0.000_001)
     }
 
     func testCursorUsageParserReadsIncludedMonthlyUsage() throws {
         let output = Data("Usage • Ultra     Resets Sep 19\nMonthly plan and on-demand usage\nIncluded        7% used".utf8)
         let snapshot = try UsageCLIParser.cursor(output)
-        XCTAssertEqual(snapshot.limits.first?.label, "Monthly included")
+        XCTAssertEqual(snapshot.limits.map(\.label), ["Monthly included"])
         XCTAssertEqual(
             try XCTUnwrap(snapshot.limits.first?.remainingFraction),
             0.93,
             accuracy: 0.000_001
         )
         XCTAssertEqual(snapshot.limits.first?.resetDescription, "Resets Sep 19")
+    }
+
+    func testCursorUsageParserReadsAutoAndAPIPools() throws {
+        let output = Data("""
+        Usage  Ultra\t\tResets Sep 19
+        Monthly plan and on-demand usage
+        Included\t 16% used
+          Auto \t 5% used
+          API\t\t 79% used
+        On-Demand\t Disabled
+        """.utf8)
+        let snapshot = try UsageCLIParser.cursor(output)
+        XCTAssertEqual(snapshot.limits.map(\.label), ["Cursor Models", "Other Models"])
+        XCTAssertEqual(snapshot.limits[0].remainingFraction, 0.95, accuracy: 0.000_001)
+        XCTAssertEqual(snapshot.limits[1].remainingFraction, 0.21, accuracy: 0.000_001)
+        XCTAssertEqual(snapshot.limits[0].resetDescription, "Resets Sep 19")
+    }
+
+    func testCursorDashboardParserReadsModelPoolsAndGrokBot() throws {
+        let period = Data(#"{"billingCycleEnd":"1789819317000","planUsage":{"autoPercentUsed":5.0,"apiPercentUsed":78.0,"totalPercentUsed":16.0}}"#.utf8)
+        let sand = Data(#"{"usagePercent":8.0,"hasNonZeroIncludedLimit":true,"nextResetTimestampUtc":"2026-09-18T19:21:59.215Z"}"#.utf8)
+        let snapshot = try UsageCLIParser.cursorDashboard(period: period, sand: sand)
+        XCTAssertEqual(snapshot.limits.map(\.label), ["Cursor Models", "Other Models", "Grok Bot"])
+        XCTAssertEqual(snapshot.limits[0].remainingFraction, 0.95, accuracy: 0.000_001)
+        XCTAssertEqual(snapshot.limits[1].remainingFraction, 0.22, accuracy: 0.000_001)
+        XCTAssertEqual(snapshot.limits[2].remainingFraction, 0.92, accuracy: 0.000_001)
+        XCTAssertNotNil(snapshot.limits[2].resetAt)
+    }
+
+    func testCursorDashboardParserSkipsPooledGrokBot() throws {
+        let period = Data(#"{"planUsage":{"autoPercentUsed":5,"apiPercentUsed":10}}"#.utf8)
+        let sand = Data(#"{"usagePercent":8.0,"hasNonZeroIncludedLimit":true,"usesPooledEnterpriseAllowance":true}"#.utf8)
+        let snapshot = try UsageCLIParser.cursorDashboard(period: period, sand: sand)
+        XCTAssertEqual(snapshot.limits.map(\.label), ["Cursor Models", "Other Models"])
     }
 
     func testProviderHoverZonesMapFromTopToBottom() {
@@ -73,10 +124,10 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(HUDMetrics.railHeight(providerCount: 3), 252)
         XCTAssertEqual(HUDMetrics.railHeight(providerCount: 2), 186)
         XCTAssertEqual(HUDMetrics.railHeight(providerCount: 1), 120)
-        // The panel never drops below the settings callout, which must still fit.
+        // The panel never drops below the tallest usage callout, which must still fit.
         XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 3).height, 252)
-        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 2).height, HUDMetrics.settingsCalloutHeight)
-        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 1).height, HUDMetrics.settingsCalloutHeight)
+        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 2).height, HUDMetrics.usageCalloutTripleHeight)
+        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 1).height, HUDMetrics.usageCalloutTripleHeight)
     }
 
     func testHoverRowsFollowTheInstalledProviders() {

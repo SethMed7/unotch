@@ -96,6 +96,22 @@ actor CLIUsageFetcher: UsageFetching {
             guard UsageCLIParser.cursorIsAuthenticated(statusOutput) else {
                 return .unavailable(source: .cursor, message: "Sign in with Cursor Agent CLI")
             }
+
+            if let token = cursorAccessToken(),
+               let period = try? ProcessRunner.cursorDashboard(
+                method: "GetCurrentPeriodUsage",
+                token: token
+               ),
+               let snapshot = try? UsageCLIParser.cursorDashboard(
+                period: period,
+                sand: try? ProcessRunner.cursorDashboard(
+                    method: "GetSandUsageStatus",
+                    token: token
+                )
+               ) {
+                return snapshot
+            }
+
             guard FileManager.default.isExecutableFile(atPath: "/usr/bin/expect") else {
                 return .unavailable(source: .cursor, message: "Background terminal helper unavailable")
             }
@@ -105,6 +121,25 @@ actor CLIUsageFetcher: UsageFetching {
         } catch {
             return .failed(source: .cursor, message: userFacingMessage(error))
         }
+    }
+
+    /// The Cursor Agent CLI stores its session in the login keychain. Reading it
+    /// lets uNotch call the same free dashboard usage RPCs the Agent `/usage`
+    /// screen uses, including Grok Bot. The token is never stored.
+    private static func cursorAccessToken() -> String? {
+        guard let data = try? ProcessRunner.run(
+            executable: "/usr/bin/security",
+            arguments: [
+                "find-generic-password",
+                "-s", "cursor-access-token",
+                "-a", "cursor-user",
+                "-w"
+            ],
+            timeout: 4
+        ) else { return nil }
+        let token = String(decoding: data, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return token.isEmpty ? nil : token
     }
 
     private static func executable(named name: String, preferredPaths: [String]) -> String? {
@@ -144,17 +179,30 @@ enum UsageCLIParser {
             throw CLIUsageError("Codex CLI returned no usage window")
         }
 
+        var parsedLimits = windows.map { window in
+            UsageLimit(
+                label: label(forWindowMinutes: window.windowDurationMins),
+                remainingFraction: 1 - (Double(window.usedPercent) / 100),
+                resetAt: window.resetsAt.map {
+                    Date(timeIntervalSince1970: TimeInterval($0))
+                }
+            )
+        }
+        if let count = result.rateLimitResetCredits?.availableCount, count > 0 {
+            parsedLimits.append(
+                UsageLimit(
+                    label: "Resets available",
+                    remainingFraction: 1,
+                    valueText: count == 1 ? "1 available" : "\(count) available",
+                    showsMeter: false,
+                    contributesToSummary: false
+                )
+            )
+        }
+
         return UsageSnapshot(
             source: .codex,
-            limits: windows.map { window in
-                UsageLimit(
-                    label: label(forWindowMinutes: window.windowDurationMins),
-                    remainingFraction: 1 - (Double(window.usedPercent) / 100),
-                    resetAt: window.resetsAt.map {
-                        Date(timeIntervalSince1970: TimeInterval($0))
-                    }
-                )
-            },
+            limits: parsedLimits,
             updatedAt: now,
             state: .loaded
         )
@@ -165,7 +213,8 @@ enum UsageCLIParser {
         let lines = envelope.result.split(separator: "\n").map(String.init)
         let limits = [
             parseClaudeLine(lines, prefix: "Current session:", label: "5-hour limit"),
-            parseClaudeLine(lines, prefix: "Current week (all models):", label: "Weekly limit")
+            parseClaudeLine(lines, prefix: "Current week (all models):", label: "Weekly limit"),
+            parseClaudeLine(lines, prefix: "Current week (Fable):", label: "Fable")
         ].compactMap { $0 }
         guard !limits.isEmpty else {
             throw CLIUsageError("Claude CLI returned no plan limits")
@@ -181,24 +230,96 @@ enum UsageCLIParser {
 
     static func cursor(_ data: Data, now: Date = Date()) throws -> UsageSnapshot {
         let text = String(decoding: data, as: UTF8.self)
-        guard let match = firstMatch(in: text, pattern: #"Included\s+([0-9]+)% used"#),
-              let used = Int(match) else {
-            throw CLIUsageError("Cursor Agent returned no included usage")
-        }
-
         let reset = firstMatch(
             in: text,
             pattern: #"Resets\s+([A-Za-z]{3}\s+[0-9]{1,2})"#
         ).map { "Resets \($0)" }
-        return UsageSnapshot(
-            source: .cursor,
-            limits: [
+
+        var limits: [UsageLimit] = []
+        if let used = firstIntMatch(in: text, pattern: #"Auto[:\s]+([0-9]+)% used"#) {
+            limits.append(
+                UsageLimit(
+                    label: "Cursor Models",
+                    remainingFraction: 1 - (Double(used) / 100),
+                    resetDescription: reset
+                )
+            )
+        }
+        if let used = firstIntMatch(in: text, pattern: #"API[:\s]+([0-9]+)% used"#) {
+            limits.append(
+                UsageLimit(
+                    label: "Other Models",
+                    remainingFraction: 1 - (Double(used) / 100),
+                    resetDescription: reset
+                )
+            )
+        }
+        if limits.isEmpty, let used = firstIntMatch(in: text, pattern: #"Included\s+([0-9]+)% used"#) {
+            limits.append(
                 UsageLimit(
                     label: "Monthly included",
                     remainingFraction: 1 - (Double(used) / 100),
                     resetDescription: reset
                 )
-            ],
+            )
+        }
+        guard !limits.isEmpty else {
+            throw CLIUsageError("Cursor Agent returned no included usage")
+        }
+
+        return UsageSnapshot(
+            source: .cursor,
+            limits: limits,
+            updatedAt: now,
+            state: .loaded
+        )
+    }
+
+    static func cursorDashboard(period: Data, sand: Data?, now: Date = Date()) throws -> UsageSnapshot {
+        guard let root = jsonObject(period),
+              let planUsage = root["planUsage"] as? [String: Any] else {
+            throw CLIUsageError("Cursor dashboard returned no plan usage")
+        }
+
+        let reset = resetDescription(fromMillis: root["billingCycleEnd"])
+        var limits: [UsageLimit] = []
+        if let used = percentValue(planUsage["autoPercentUsed"]) {
+            limits.append(
+                UsageLimit(
+                    label: "Cursor Models",
+                    remainingFraction: 1 - used / 100,
+                    resetDescription: reset
+                )
+            )
+        }
+        if let used = percentValue(planUsage["apiPercentUsed"]) {
+            limits.append(
+                UsageLimit(
+                    label: "Other Models",
+                    remainingFraction: 1 - used / 100,
+                    resetDescription: reset
+                )
+            )
+        }
+        if limits.isEmpty, let used = percentValue(planUsage["totalPercentUsed"]) {
+            limits.append(
+                UsageLimit(
+                    label: "Monthly included",
+                    remainingFraction: 1 - used / 100,
+                    resetDescription: reset
+                )
+            )
+        }
+        if let sand, let grok = grokBotLimit(from: sand) {
+            limits.append(grok)
+        }
+        guard !limits.isEmpty else {
+            throw CLIUsageError("Cursor dashboard returned no usage window")
+        }
+
+        return UsageSnapshot(
+            source: .cursor,
+            limits: limits,
             updatedAt: now,
             state: .loaded
         )
@@ -242,6 +363,76 @@ enum UsageCLIParser {
         return String(text[range])
     }
 
+    private static func firstIntMatch(in text: String, pattern: String) -> Int? {
+        firstMatch(in: text, pattern: pattern).flatMap(Int.init)
+    }
+
+    private static func grokBotLimit(from data: Data) -> UsageLimit? {
+        guard let json = jsonObject(data),
+              !flag(json["usesPooledEnterpriseAllowance"]),
+              !flag(json["includedLimitZero"]),
+              flag(json["hasNonZeroIncludedLimit"]),
+              let used = percentValue(json["usagePercent"]) else {
+            return nil
+        }
+
+        return UsageLimit(
+            label: "Grok Bot",
+            remainingFraction: 1 - used / 100,
+            resetAt: date(from: json["nextResetTimestampUtc"])
+        )
+    }
+
+    private static func jsonObject(_ data: Data) -> [String: Any]? {
+        (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }
+
+    private static func percentValue(_ value: Any?) -> Double? {
+        switch value {
+        case let number as Double: number
+        case let number as Int: Double(number)
+        case let number as NSNumber: number.doubleValue
+        case let text as String: Double(text)
+        default: nil
+        }
+    }
+
+    private static func flag(_ value: Any?) -> Bool {
+        switch value {
+        case let flag as Bool: flag
+        case let number as NSNumber: number.boolValue
+        default: false
+        }
+    }
+
+    private static func resetDescription(fromMillis value: Any?) -> String? {
+        guard let date = date(fromMillis: value) else { return nil }
+        return "Resets \(date.formatted(date: .abbreviated, time: .omitted))"
+    }
+
+    private static func date(fromMillis value: Any?) -> Date? {
+        let millis: Double?
+        switch value {
+        case let number as Double: millis = number
+        case let number as Int: millis = Double(number)
+        case let number as NSNumber: millis = number.doubleValue
+        case let text as String: millis = Double(text)
+        default: millis = nil
+        }
+        guard let millis, millis > 0 else { return nil }
+        return Date(timeIntervalSince1970: millis / 1000)
+    }
+
+    private static func date(from value: Any?) -> Date? {
+        if let date = date(fromMillis: value) { return date }
+        guard let text = value as? String, !text.isEmpty else { return nil }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: text) { return date }
+        iso.formatOptions = [.withInternetDateTime]
+        return iso.date(from: text)
+    }
+
     private static func label(forWindowMinutes minutes: Int?) -> String {
         guard let minutes else { return "Plan limit" }
         if minutes >= 7 * 24 * 60 { return "Weekly limit" }
@@ -259,6 +450,11 @@ private struct CodexResponse: Decodable {
 private struct CodexRateLimitResult: Decodable {
     let rateLimits: CodexRateLimits
     let rateLimitsByLimitId: [String: CodexRateLimits]?
+    let rateLimitResetCredits: CodexResetCredits?
+}
+
+private struct CodexResetCredits: Decodable {
+    let availableCount: Int?
 }
 
 private struct CodexRateLimits: Decodable {
@@ -371,6 +567,39 @@ enum ProcessRunner {
         return capture.data
     }
 
+    static func cursorDashboard(method: String, token: String) throws -> Data {
+        guard let url = URL(string: "https://api2.cursor.sh/aiserver.v1.DashboardService/\(method)") else {
+            throw CLIUsageError("Cursor dashboard usage read failed")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = Data("{}".utf8)
+        request.timeoutInterval = 10
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: "Connect-Protocol-Version")
+        request.setValue("\(AppInfo.name)/\(AppInfo.version)", forHTTPHeaderField: "User-Agent")
+
+        let capture = HTTPCapture()
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            capture.finish(data: data, response: response, error: error)
+        }
+        task.resume()
+        guard capture.wait(timeout: 10) else {
+            task.cancel()
+            throw CLIUsageError("Cursor dashboard usage read timed out")
+        }
+        if capture.transportFailed {
+            throw CLIUsageError("Cursor dashboard usage read failed")
+        }
+        guard let http = capture.response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let data = capture.data else {
+            throw CLIUsageError("Cursor dashboard usage read failed")
+        }
+        return data
+    }
+
     static func cursorUsage(executable: String) throws -> Data {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("app.unotch.utility.cursor-\(UUID().uuidString)", isDirectory: true)
@@ -448,6 +677,34 @@ private final class OutputCapture: @unchecked Sendable {
 
     func signal() {
         lock.withLock {
+            guard !hasSignaled else { return }
+            hasSignaled = true
+            semaphore.signal()
+        }
+    }
+
+    func wait(timeout: TimeInterval) -> Bool {
+        semaphore.wait(timeout: .now() + timeout) == .success
+    }
+}
+
+private final class HTTPCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private let semaphore = DispatchSemaphore(value: 0)
+    private var storage: Data?
+    private var urlResponse: URLResponse?
+    private var failed = false
+    private var hasSignaled = false
+
+    var data: Data? { lock.withLock { storage } }
+    var response: URLResponse? { lock.withLock { urlResponse } }
+    var transportFailed: Bool { lock.withLock { failed } }
+
+    func finish(data: Data?, response: URLResponse?, error: Error?) {
+        lock.withLock {
+            storage = data
+            urlResponse = response
+            failed = error != nil
             guard !hasSignaled else { return }
             hasSignaled = true
             semaphore.signal()

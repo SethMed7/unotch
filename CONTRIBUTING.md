@@ -8,8 +8,9 @@ are the ones most likely to land.
 uNotch shows local AI usage limits in a glass HUD at the screen edge. It is:
 
 - native Swift with **no third-party dependencies**
-- **privacy-first**: no accounts, no telemetry, no network traffic except the
-  user-initiated Update & Restart
+- **privacy-first**: no accounts, no telemetry. Network use is limited to
+  Update & Restart and the free Cursor dashboard usage RPCs that reuse the
+  local Agent login
 - **quiet**: one accent colour, one shadow, a settings surface with exactly four
   controls (side, position, update, quit)
 

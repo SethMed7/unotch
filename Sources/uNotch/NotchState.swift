@@ -58,6 +58,9 @@ struct UsageLimit: Equatable, Identifiable, Sendable {
     let remainingFraction: Double
     let resetAt: Date?
     let resetDescription: String?
+    let valueText: String?
+    let showsMeter: Bool
+    let contributesToSummary: Bool
 
     var id: String { label }
 
@@ -65,12 +68,18 @@ struct UsageLimit: Equatable, Identifiable, Sendable {
         label: String,
         remainingFraction: Double,
         resetAt: Date? = nil,
-        resetDescription: String? = nil
+        resetDescription: String? = nil,
+        valueText: String? = nil,
+        showsMeter: Bool = true,
+        contributesToSummary: Bool = true
     ) {
         self.label = label
         self.remainingFraction = min(max(remainingFraction, 0), 1)
         self.resetAt = resetAt
         self.resetDescription = resetDescription
+        self.valueText = valueText
+        self.showsMeter = showsMeter
+        self.contributesToSummary = contributesToSummary
     }
 
     var remainingPercent: Int {
@@ -121,7 +130,9 @@ struct UsageSnapshot: Equatable, Sendable {
     }
 
     private var summaryLimit: UsageLimit? {
-        limits.min { $0.remainingFraction < $1.remainingFraction }
+        limits
+            .filter(\.contributesToSummary)
+            .min { $0.remainingFraction < $1.remainingFraction }
     }
 
     var statusMessage: String? {
@@ -240,7 +251,7 @@ final class UsageMonitor: ObservableObject {
         switch source {
         case .codex: 45
         case .claude: 60
-        case .cursor: 300
+        case .cursor: 60
         }
     }
 }
