@@ -213,8 +213,18 @@ enum UsageCLIParser {
         let lines = envelope.result.split(separator: "\n").map(String.init)
         let limits = [
             parseClaudeLine(lines, prefix: "Current session:", label: "5-hour limit"),
-            parseClaudeLine(lines, prefix: "Current week (all models):", label: "Weekly limit"),
-            parseClaudeLine(lines, prefix: "Current week (Fable):", label: "Fable")
+            parseClaudeLine(
+                lines,
+                prefix: "Current week (all models):",
+                label: "Weekly limit",
+                contributesToSummary: false
+            ),
+            parseClaudeLine(
+                lines,
+                prefix: "Current week (Fable):",
+                label: "Fable",
+                contributesToSummary: false
+            )
         ].compactMap { $0 }
         guard !limits.isEmpty else {
             throw CLIUsageError("Claude CLI returned no plan limits")
@@ -332,7 +342,8 @@ enum UsageCLIParser {
     private static func parseClaudeLine(
         _ lines: [String],
         prefix: String,
-        label: String
+        label: String,
+        contributesToSummary: Bool = true
     ) -> UsageLimit? {
         guard let line = lines.first(where: { $0.hasPrefix(prefix) }),
               let usedRange = line.range(of: #"[0-9]+% used"#, options: .regularExpression),
@@ -346,7 +357,8 @@ enum UsageCLIParser {
         return UsageLimit(
             label: label,
             remainingFraction: 1 - (Double(used) / 100),
-            resetDescription: resetDescription
+            resetDescription: resetDescription,
+            contributesToSummary: contributesToSummary
         )
     }
 

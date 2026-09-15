@@ -57,7 +57,18 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(snapshot.limits[0].remainingFraction, 0.66, accuracy: 0.000_001)
         XCTAssertEqual(snapshot.limits[1].remainingFraction, 0.64, accuracy: 0.000_001)
         XCTAssertEqual(snapshot.limits[1].resetDescription, "Resets Sep 9 at 11am (UTC)")
+        XCTAssertFalse(snapshot.limits[1].contributesToSummary)
         XCTAssertEqual(snapshot.limits[2].remainingFraction, 0.31, accuracy: 0.000_001)
+        XCTAssertFalse(snapshot.limits[2].contributesToSummary)
+        XCTAssertEqual(snapshot.remainingPercent, 66)
+    }
+
+    func testClaudeRailFollowsFiveHourWindowWhenFableIsEmpty() throws {
+        let result = "Current session: 2% used · resets today\nCurrent week (all models): 56% used · resets Sep 16 at 11am (UTC)\nCurrent week (Fable): 100% used · resets Sep 16 at 10:59am (UTC)"
+        let encoded = try JSONSerialization.data(withJSONObject: ["result": result])
+        let snapshot = try UsageCLIParser.claude(encoded)
+        XCTAssertEqual(snapshot.limits[2].remainingPercent, 0)
+        XCTAssertEqual(snapshot.remainingPercent, 98)
     }
 
     func testCursorUsageParserReadsIncludedMonthlyUsage() throws {

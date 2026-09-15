@@ -6,6 +6,13 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.2.3] — 2026-09-15
+
+### Fixed
+- Claude's rail ring follows the **5-hour** session window. Fable and the weekly
+  all-models limit stay in the callout; they no longer steal the glanceable
+  percent when they are more depleted.
+
 ## [1.2.2] — 2026-09-15
 
 ### Changed
@@ -75,7 +82,8 @@ All notable changes to uNotch are recorded here. The format follows
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.2.2...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.2.3...HEAD
+[1.2.3]: https://github.com/SethMed7/unotch/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/SethMed7/unotch/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/SethMed7/unotch/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/SethMed7/unotch/compare/v1.0.0...v1.2.0

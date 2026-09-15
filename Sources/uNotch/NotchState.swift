@@ -130,9 +130,9 @@ struct UsageSnapshot: Equatable, Sendable {
     }
 
     private var summaryLimit: UsageLimit? {
-        limits
-            .filter(\.contributesToSummary)
-            .min { $0.remainingFraction < $1.remainingFraction }
+        let contributing = limits.filter(\.contributesToSummary)
+        return contributing.min { $0.remainingFraction < $1.remainingFraction }
+            ?? limits.first
     }
 
     var statusMessage: String? {
