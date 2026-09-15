@@ -260,7 +260,8 @@ enum UsageCLIParser {
                 UsageLimit(
                     label: "Other Models",
                     remainingFraction: 1 - (Double(used) / 100),
-                    resetDescription: reset
+                    resetDescription: reset,
+                    contributesToSummary: false
                 )
             )
         }
@@ -307,7 +308,8 @@ enum UsageCLIParser {
                 UsageLimit(
                     label: "Other Models",
                     remainingFraction: 1 - used / 100,
-                    resetDescription: reset
+                    resetDescription: reset,
+                    contributesToSummary: false
                 )
             )
         }
@@ -391,7 +393,8 @@ enum UsageCLIParser {
         return UsageLimit(
             label: "Grok Bot",
             remainingFraction: 1 - used / 100,
-            resetAt: date(from: json["nextResetTimestampUtc"])
+            resetAt: date(from: json["nextResetTimestampUtc"]),
+            contributesToSummary: false
         )
     }
 

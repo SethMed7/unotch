@@ -6,6 +6,12 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.2.4] — 2026-09-15
+
+### Fixed
+- Cursor's rail ring follows **Cursor Models**. Other Models and Grok Bot stay in
+  the callout.
+
 ## [1.2.3] — 2026-09-15
 
 ### Fixed
@@ -82,7 +88,8 @@ All notable changes to uNotch are recorded here. The format follows
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.2.3...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.2.4...HEAD
+[1.2.4]: https://github.com/SethMed7/unotch/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/SethMed7/unotch/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/SethMed7/unotch/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/SethMed7/unotch/compare/v1.2.0...v1.2.1

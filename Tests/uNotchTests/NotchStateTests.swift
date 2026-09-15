@@ -96,7 +96,9 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(snapshot.limits.map(\.label), ["Cursor Models", "Other Models"])
         XCTAssertEqual(snapshot.limits[0].remainingFraction, 0.95, accuracy: 0.000_001)
         XCTAssertEqual(snapshot.limits[1].remainingFraction, 0.21, accuracy: 0.000_001)
+        XCTAssertFalse(snapshot.limits[1].contributesToSummary)
         XCTAssertEqual(snapshot.limits[0].resetDescription, "Resets Sep 19")
+        XCTAssertEqual(snapshot.remainingPercent, 95)
     }
 
     func testCursorDashboardParserReadsModelPoolsAndGrokBot() throws {
@@ -106,8 +108,11 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(snapshot.limits.map(\.label), ["Cursor Models", "Other Models", "Grok Bot"])
         XCTAssertEqual(snapshot.limits[0].remainingFraction, 0.95, accuracy: 0.000_001)
         XCTAssertEqual(snapshot.limits[1].remainingFraction, 0.22, accuracy: 0.000_001)
+        XCTAssertFalse(snapshot.limits[1].contributesToSummary)
         XCTAssertEqual(snapshot.limits[2].remainingFraction, 0.92, accuracy: 0.000_001)
+        XCTAssertFalse(snapshot.limits[2].contributesToSummary)
         XCTAssertNotNil(snapshot.limits[2].resetAt)
+        XCTAssertEqual(snapshot.remainingPercent, 95)
     }
 
     func testCursorDashboardParserSkipsPooledGrokBot() throws {
