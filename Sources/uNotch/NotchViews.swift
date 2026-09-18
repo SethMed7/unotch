@@ -24,6 +24,19 @@ enum HUDMetrics {
     static let calloutPointerRestY: CGFloat = 32
     /// Half the pointer's height along the edge; the pointer keeps clear of the corners.
     static let calloutPointerHalfHeight: CGFloat = 9
+    /// A hovered ring turns red below this remaining fraction. 10% itself stays mint.
+    static let lowRemainingCutoff = 0.10
+
+    static func isLowRemaining(_ remaining: Double?) -> Bool {
+        guard let remaining else { return false }
+        return Int((remaining * 100).rounded()) < Int((lowRemainingCutoff * 100).rounded())
+    }
+
+    /// The selected ring's stroke and percent: mint, or red when remaining is under 10%.
+    static func ringAccent(remaining: Double?, selected: Bool) -> Color {
+        guard selected else { return Brand.paper.opacity(0.58) }
+        return isLowRemaining(remaining) ? Brand.alert : Brand.mint
+    }
 
     /// Centre of the ring at `index`, measured from the top of the rail.
     static func ringCenterY(index: Int) -> CGFloat {
@@ -252,7 +265,7 @@ private struct SourceRingButton: View {
                 Circle()
                     .trim(from: 0, to: remaining ?? 0)
                     .stroke(
-                        isSelected ? Brand.mint : Brand.paper.opacity(0.58),
+                        HUDMetrics.ringAccent(remaining: remaining, selected: isSelected),
                         style: StrokeStyle(lineWidth: 4, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
@@ -265,12 +278,12 @@ private struct SourceRingButton: View {
             }
             .frame(width: 36, height: 36)
 
-            // The selected ring is mint and so is its number; that is the whole
-            // selection state. No card behind it.
+            // The selected ring and its number share one colour: mint, or red under 10%.
+            // No card behind the row.
             Text(percentText)
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(isSelected ? Brand.mint : Brand.ink2)
+                .foregroundStyle(isSelected ? HUDMetrics.ringAccent(remaining: remaining, selected: true) : Brand.ink2)
         }
         // Pinned to the row's top so the ring's centre is a known distance down
         // (`HUDMetrics.ringCenterOffset`), where the callout's pointer aims.

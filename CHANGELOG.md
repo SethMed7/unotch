@@ -6,6 +6,12 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.5.3] — 2026-09-18
+
+### Changed
+- A hovered ring turns **red** instead of mint when that provider has under 10%
+  remaining. 10% itself stays mint. The percent under the ring matches.
+
 ## [1.5.2] — 2026-09-18
 
 ### Changed
@@ -186,7 +192,8 @@ it has no extra subscriptions to find; its sign-in check is unchanged.
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.5.2...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.5.3...HEAD
+[1.5.3]: https://github.com/SethMed7/unotch/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/SethMed7/unotch/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/SethMed7/unotch/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/SethMed7/unotch/compare/v1.4.0...v1.5.0

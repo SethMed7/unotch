@@ -147,9 +147,11 @@
     .ring.on .disc { fill: rgba(244,247,246,0.09); }
     .ring .pct { font: 600 9px/1 var(--un-font-display); font-variant-numeric: tabular-nums; color: var(--un-ink-2); }
     .ring.on .pct { color: var(--un-mint); }
+    .ring.on.low .pct { color: #FF5C6A; }
     .ring .track { fill: none; stroke: rgba(244,247,246,0.10); stroke-width: 4; }
     .ring .arc { fill: none; stroke: rgba(244,247,246,0.58); stroke-width: 4; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
     .ring.on .arc { stroke: var(--un-mint); }
+    .ring.on.low .arc { stroke: #FF5C6A; }
     .hud:has(#settings:checked) .ring.on .arc { stroke: rgba(244,247,246,0.58); }
     .hud:has(#settings:checked) .ring.on .pct { color: var(--un-ink-2); }
     .footer-rail { margin-top: auto; height: 42px; display: flex; align-items: center; justify-content: center; width: 100%; }
@@ -329,7 +331,7 @@
               <div class="head">
                 <img class="mark" src="brand/logo/mark.svg?v=2" width="20" height="20" alt="">
                 <div class="title">uNotch</div>
-                <span class="ver">1.5.2</span>
+                <span class="ver">1.5.3</span>
               </div>
               <div class="srow"><span class="lab">Side</span><span class="seg"><span class="on">Left</span><span>Right</span></span></div>
               <div class="srow"><span class="lab">Position</span><span class="grip"><svg viewBox="0 0 8 12" fill="currentColor"><circle cx="2" cy="2" r="1.25"/><circle cx="6" cy="2" r="1.25"/><circle cx="2" cy="6" r="1.25"/><circle cx="6" cy="6" r="1.25"/><circle cx="2" cy="10" r="1.25"/><circle cx="6" cy="10" r="1.25"/></svg>Drag to move</span></div>

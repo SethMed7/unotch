@@ -202,6 +202,18 @@ final class NotchStateTests: XCTestCase {
         }
     }
 
+    func testHoveredRingTurnsRedUnderTenPercent() {
+        XCTAssertFalse(HUDMetrics.isLowRemaining(nil))
+        XCTAssertFalse(HUDMetrics.isLowRemaining(1))
+        XCTAssertFalse(HUDMetrics.isLowRemaining(0.10), "10% itself stays mint")
+        XCTAssertFalse(HUDMetrics.isLowRemaining(0.095), "9.5% rounds to 10% on the ring")
+        XCTAssertTrue(HUDMetrics.isLowRemaining(0.094))
+        XCTAssertTrue(HUDMetrics.isLowRemaining(0))
+        XCTAssertEqual(HUDMetrics.ringAccent(remaining: 0.08, selected: false), Brand.paper.opacity(0.58), "unhovered rings stay quiet")
+        XCTAssertEqual(HUDMetrics.ringAccent(remaining: 0.08, selected: true), Brand.alert)
+        XCTAssertEqual(HUDMetrics.ringAccent(remaining: 0.40, selected: true), Brand.mint)
+    }
+
     func testOpenSettingsIsIdempotent() {
         let state = NotchState(monitor: UsageMonitor())
         XCTAssertFalse(state.isSettingsOpen)

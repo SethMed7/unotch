@@ -89,6 +89,29 @@ final class RenderTests: XCTestCase {
         try writeSnapshotIfRequested(image, variable: "UNOTCH_FOUR_SNAPSHOT")
     }
 
+    func testLowRemainingRingRendersRed() async throws {
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.claude, .codex, .cursor],
+            snapshots: [
+                .claude: StubFetcher.loaded(.claude, remaining: 0.66),
+                .codex: StubFetcher.loaded(.codex, remaining: 0.08),
+                .cursor: StubFetcher.loaded(.cursor, remaining: 0.95)
+            ]
+        ))
+        monitor.refreshAll()
+        for _ in 0..<200 where monitor.snapshot(for: .codex).state != .loaded {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        monitor.select(.codex)
+        XCTAssertTrue(HUDMetrics.isLowRemaining(monitor.remainingFraction(for: .codex)))
+
+        let size = HUDMetrics.expandedSize(providerCount: 3)
+        let image = try render(monitor: monitor, settingsOpen: false)
+        XCTAssertEqual(image.width, Int(size.width) * 2)
+        XCTAssertEqual(image.height, Int(size.height) * 2)
+        try writeSnapshotIfRequested(image, variable: "UNOTCH_LOW_SNAPSHOT")
+    }
+
     /// Claude with its default sign-in plus one extra per folder, every one signed in
     /// with the three Claude limits, beside a plain Codex and Cursor.
     private func monitorWithClaudeSubscriptions(
