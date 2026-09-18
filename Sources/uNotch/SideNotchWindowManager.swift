@@ -116,7 +116,7 @@ final class SideNotchWindowManager: NSObject {
         .store(in: &cancellables)
 
         // The rail is sized from the installed providers; resize the panel when that changes.
-        state.monitor.$sources
+        state.monitor.$providers
             .map(\.count)
             .removeDuplicates()
             .dropFirst()
@@ -130,7 +130,7 @@ final class SideNotchWindowManager: NSObject {
     /// Height of the provider rail for the current provider list. The rail is
     /// top-aligned inside the panel, so its bottom edge is `panel.height - railHeight`.
     private var railHeight: CGFloat {
-        HUDMetrics.railHeight(providerCount: state.monitor.sources.count)
+        HUDMetrics.railHeight(providerCount: state.monitor.providers.count)
     }
 
     private func installPointerMonitors() {
@@ -233,12 +233,12 @@ final class SideNotchWindowManager: NSObject {
             updateBottomHoverZone(at: point)
             updateHoveredProvider(at: point)
         } else if state.isPointerInside {
-            hoveredSource = nil
+            hoveredProvider = nil
             pointerExited()
         }
     }
 
-    private var hoveredSource: MonitorSource?
+    private var hoveredProvider: Provider?
 
     private func updateBottomHoverZone(at screenPoint: NSPoint) {
         guard state.isExpanded else {
@@ -256,7 +256,7 @@ final class SideNotchWindowManager: NSObject {
 
     private func updateHoveredProvider(at screenPoint: NSPoint) {
         guard state.isExpanded else {
-            hoveredSource = nil
+            hoveredProvider = nil
             return
         }
 
@@ -265,23 +265,23 @@ final class SideNotchWindowManager: NSObject {
         let railBottom = panel.frame.height - railHeight
         guard local.x >= railMinX, local.x <= railMinX + Metrics.railWidth,
               local.y >= railBottom, local.y <= panel.frame.height else {
-            hoveredSource = nil
+            hoveredProvider = nil
             return
         }
 
         // The footer belongs to the settings gear; only the rows above it switch providers.
         let distanceFromTop = panel.frame.height - local.y
-        guard let source = ProviderHoverGeometry.source(
+        guard let provider = ProviderHoverGeometry.provider(
             distanceFromTop: distanceFromTop,
             railHeight: railHeight,
             footerHeight: Metrics.railFooterHeight,
-            sources: state.monitor.sources
+            providers: state.monitor.providers
         ) else { return }
-        guard source != hoveredSource else { return }
+        guard provider != hoveredProvider else { return }
 
-        hoveredSource = source
+        hoveredProvider = provider
         if state.isSettingsOpen { state.isSettingsOpen = false }
-        state.monitor.refresh(source)
+        state.monitor.refresh(provider)
     }
 
     private func dragPanel(by translation: CGSize) {
@@ -335,7 +335,7 @@ final class SideNotchWindowManager: NSObject {
         case .idle:
             size = Metrics.idleSize
         case .expanded:
-            let expanded = HUDMetrics.expandedSize(providerCount: state.monitor.sources.count)
+            let expanded = HUDMetrics.expandedSize(providerCount: state.monitor.providers.count)
             size = NSSize(width: expanded.width, height: expanded.height)
         }
 
@@ -378,21 +378,21 @@ private extension NSRect {
 enum ProviderHoverGeometry {
     /// Maps a pointer offset from the top of the rail to a provider row. Returns nil
     /// outside the rail or inside the footer reserved for the settings gear.
-    static func source(
+    static func provider(
         distanceFromTop: CGFloat,
         railHeight: CGFloat,
         footerHeight: CGFloat = 0,
-        sources: [MonitorSource] = MonitorSource.allCases
-    ) -> MonitorSource? {
+        providers: [Provider] = Provider.allCases
+    ) -> Provider? {
         let providerHeight = railHeight - footerHeight
-        guard !sources.isEmpty, providerHeight > 0,
+        guard !providers.isEmpty, providerHeight > 0,
               distanceFromTop >= 0, distanceFromTop <= providerHeight else {
             return nil
         }
 
-        let rowHeight = providerHeight / CGFloat(sources.count)
-        let index = min(sources.count - 1, max(0, Int(distanceFromTop / rowHeight)))
-        return sources[index]
+        let rowHeight = providerHeight / CGFloat(providers.count)
+        let index = min(providers.count - 1, max(0, Int(distanceFromTop / rowHeight)))
+        return providers[index]
     }
 }
 

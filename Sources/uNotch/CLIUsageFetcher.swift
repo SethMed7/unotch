@@ -2,18 +2,19 @@ import Foundation
 
 protocol UsageFetching: Sendable {
     func fetchUsage(for source: MonitorSource) async -> UsageSnapshot
-    /// Providers whose local CLI is present on this Mac. Cheap file checks; safe to call often.
+    /// Subscriptions whose local CLI is present on this Mac, including extra sign-ins
+    /// of the same CLI. Cheap file checks; safe to call often.
     func installedSources() -> [MonitorSource]
 }
 
 actor CLIUsageFetcher: UsageFetching {
     func fetchUsage(for source: MonitorSource) async -> UsageSnapshot {
         await Task.detached(priority: .utility) {
-            switch source {
+            switch source.provider {
             case .codex:
                 return Self.fetchCodexUsage()
             case .claude:
-                return Self.fetchClaudeUsage()
+                return Self.fetchClaudeUsage(for: source)
             case .cursor:
                 return Self.fetchCursorUsage()
             }
@@ -21,13 +22,39 @@ actor CLIUsageFetcher: UsageFetching {
     }
 
     nonisolated func installedSources() -> [MonitorSource] {
-        MonitorSource.allCases.filter { Self.executablePath(for: $0) != nil }
+        MonitorSource.defaults
+            .filter { Self.executablePath(for: $0.provider) != nil }
+            .flatMap { source in
+                source.provider == .claude
+                    ? [source] + Self.claudeConfigDirectories().map {
+                        MonitorSource(provider: .claude, configDirectory: $0)
+                    }
+                    : [source]
+            }
+    }
+
+    /// Extra Claude Code sign-ins, e.g. `alias cc-dev='CLAUDE_CONFIG_DIR=~/.claude-dev claude'`.
+    /// Claude Code keeps `.claude.json` inside the directory only when `CLAUDE_CONFIG_DIR`
+    /// points at it, so that file marks a real second sign-in and skips look-alike
+    /// folders such as `~/.claude-worktrees`. Only names are checked; nothing is read.
+    static func claudeConfigDirectories(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [String] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: home.path)) ?? []
+        return names
+            .filter { $0.hasPrefix(".claude-") }
+            .sorted()
+            .map { home.appendingPathComponent($0, isDirectory: true) }
+            .filter {
+                FileManager.default.fileExists(atPath: $0.appendingPathComponent(".claude.json").path)
+            }
+            .map(\.path)
     }
 
     /// One place that knows where each provider's CLI lives.
-    static func executablePath(for source: MonitorSource) -> String? {
+    static func executablePath(for provider: Provider) -> String? {
         let home = NSString(string: "~").expandingTildeInPath
-        switch source {
+        switch provider {
         case .codex:
             return executable(named: "codex", preferredPaths: [
                 "/opt/homebrew/bin/codex",
@@ -61,11 +88,12 @@ actor CLIUsageFetcher: UsageFetching {
         }
     }
 
-    private static func fetchClaudeUsage() -> UsageSnapshot {
+    private static func fetchClaudeUsage(for source: MonitorSource) -> UsageSnapshot {
         guard let executable = executablePath(for: .claude) else {
-            return .unavailable(source: .claude, message: "Claude CLI not found")
+            return .unavailable(source: source, message: "Claude CLI not found")
         }
 
+        let environment = source.configDirectory.map { ["CLAUDE_CONFIG_DIR": $0] } ?? [:]
         do {
             let output = try ProcessRunner.run(
                 executable: executable,
@@ -74,11 +102,25 @@ actor CLIUsageFetcher: UsageFetching {
                     "--output-format", "json",
                     "--no-session-persistence"
                 ],
-                timeout: 12
+                timeout: 12,
+                additionalEnvironment: environment
             )
-            return try UsageCLIParser.claude(output)
+            return try UsageCLIParser.claude(output, source: source)
         } catch {
-            return .failed(source: .claude, message: userFacingMessage(error))
+            // A signed-out CLI still answers `/usage`, just with no limits. Only then is
+            // it worth a second launch to tell "sign in" apart from a real read failure.
+            // `auth status` reports signed-out as JSON on a failing exit.
+            if error as? CLIUsageError == UsageCLIParser.noClaudeLimits,
+               let status = try? ProcessRunner.run(
+                executable: executable,
+                arguments: ["auth", "status"],
+                timeout: 8,
+                additionalEnvironment: environment,
+                requiresCleanExit: false
+            ), UsageCLIParser.claudeIsSignedOut(status) {
+                return .unavailable(source: source, message: "Sign in with Claude Code")
+            }
+            return .failed(source: source, message: userFacingMessage(error))
         }
     }
 
@@ -160,6 +202,8 @@ actor CLIUsageFetcher: UsageFetching {
 }
 
 enum UsageCLIParser {
+    static let noClaudeLimits = CLIUsageError("Claude CLI returned no plan limits")
+
     static func codex(_ data: Data, now: Date = Date()) throws -> UsageSnapshot {
         let decoder = JSONDecoder()
         let response = data
@@ -208,7 +252,11 @@ enum UsageCLIParser {
         )
     }
 
-    static func claude(_ data: Data, now: Date = Date()) throws -> UsageSnapshot {
+    static func claude(
+        _ data: Data,
+        source: MonitorSource = .claude,
+        now: Date = Date()
+    ) throws -> UsageSnapshot {
         let envelope = try JSONDecoder().decode(ClaudeUsageEnvelope.self, from: data)
         let lines = envelope.result.split(separator: "\n").map(String.init)
         let limits = [
@@ -227,11 +275,11 @@ enum UsageCLIParser {
             )
         ].compactMap { $0 }
         guard !limits.isEmpty else {
-            throw CLIUsageError("Claude CLI returned no plan limits")
+            throw noClaudeLimits
         }
 
         return UsageSnapshot(
-            source: .claude,
+            source: source,
             limits: limits,
             updatedAt: now,
             state: .loaded
@@ -339,6 +387,11 @@ enum UsageCLIParser {
 
     static func cursorIsAuthenticated(_ data: Data) -> Bool {
         (try? JSONDecoder().decode(CursorStatus.self, from: data).isAuthenticated) == true
+    }
+
+    /// True only when `claude auth status` clearly says so; unreadable output is not proof.
+    static func claudeIsSignedOut(_ data: Data) -> Bool {
+        (try? JSONDecoder().decode(ClaudeAuthStatus.self, from: data).loggedIn) == false
     }
 
     private static func parseClaudeLine(
@@ -487,6 +540,10 @@ private struct ClaudeUsageEnvelope: Decodable {
     let result: String
 }
 
+private struct ClaudeAuthStatus: Decodable {
+    let loggedIn: Bool
+}
+
 private struct CursorStatus: Decodable {
     let isAuthenticated: Bool
 }
@@ -504,7 +561,8 @@ enum ProcessRunner {
         executable: String,
         arguments: [String],
         timeout: TimeInterval,
-        additionalEnvironment: [String: String] = [:]
+        additionalEnvironment: [String: String] = [:],
+        requiresCleanExit: Bool = true
     ) throws -> Data {
         let process = Process()
         let output = Pipe()
@@ -531,7 +589,7 @@ enum ProcessRunner {
         }
 
         let stdout = output.fileHandleForReading.readDataToEndOfFile()
-        guard process.terminationStatus == 0 else {
+        guard process.terminationStatus == 0 || !requiresCleanExit else {
             throw CLIUsageError("CLI usage read failed")
         }
         return stdout

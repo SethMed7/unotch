@@ -126,14 +126,14 @@ private struct ProviderRailView: View {
 
             VStack(spacing: 0) {
                 VStack(spacing: HUDMetrics.ringRowSpacing) {
-                    ForEach(monitor.sources) { source in
+                    ForEach(monitor.providers) { provider in
                         SourceRingButton(
-                            source: source,
-                            remaining: monitor.remainingFraction(for: source),
-                            isSelected: source == monitor.snapshot.source && !state.isSettingsOpen,
+                            provider: provider,
+                            remaining: monitor.remainingFraction(for: provider),
+                            isSelected: provider == monitor.selectedProvider && !state.isSettingsOpen,
                             action: {
                                 state.isSettingsOpen = false
-                                monitor.select(source)
+                                monitor.select(provider)
                             }
                         )
                     }
@@ -199,7 +199,7 @@ private struct SettingsDockButton: View {
 }
 
 private struct SourceRingButton: View {
-    let source: MonitorSource
+    let provider: Provider
     let remaining: Double?
     let isSelected: Bool
     let action: () -> Void
@@ -220,7 +220,7 @@ private struct SourceRingButton: View {
                 Circle()
                     .fill(isSelected ? Brand.paper.opacity(0.09) : Color.black.opacity(0.08))
                     .padding(6)
-                CompanyLogo(source: source)
+                CompanyLogo(provider: provider)
                     .frame(width: 17, height: 17)
             }
             .frame(width: 36, height: 36)
@@ -239,8 +239,8 @@ private struct SourceRingButton: View {
         .onHover { hovering in
             if hovering { action() }
         }
-        .help("Show \(source.name) usage")
-        .accessibilityLabel("\(source.name), \(percentText) remaining")
+        .help("Show \(provider.name) usage")
+        .accessibilityLabel("\(provider.name), \(percentText) remaining")
     }
 
     private var percentText: String {
@@ -271,7 +271,7 @@ private struct ExpandedNotchView: View {
     }
 
     private var railHeight: CGFloat {
-        HUDMetrics.railHeight(providerCount: monitor.sources.count)
+        HUDMetrics.railHeight(providerCount: monitor.providers.count)
     }
 
     private var calloutHeight: CGFloat {
@@ -282,7 +282,7 @@ private struct ExpandedNotchView: View {
     private var rail: some View {
         ProviderRailView(state: state, monitor: monitor, edge: state.edge)
             .frame(width: HUDMetrics.railWidth, height: railHeight)
-            .animation(reduceMotion ? Brand.fade : Brand.spring, value: monitor.sources.count)
+            .animation(reduceMotion ? Brand.fade : Brand.spring, value: monitor.providers.count)
     }
 
     @ViewBuilder
@@ -346,13 +346,11 @@ private struct UsageFlyoutView: View {
 
     private var header: some View {
         HStack(spacing: 9) {
-            CompanyLogo(source: monitor.snapshot.source)
+            CompanyLogo(provider: monitor.selectedProvider)
                 .frame(width: 22, height: 22)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text("\(monitor.snapshot.source.name) usage")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(Brand.ink)
+                title
                 Text(headerDetail)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(Brand.ink2)
@@ -365,6 +363,31 @@ private struct UsageFlyoutView: View {
                 isRefreshing: monitor.snapshot.state == .refreshing,
                 action: monitor.refresh
             )
+        }
+    }
+
+    /// More than one signed-in subscription turns the title into a switcher, so the
+    /// callout keeps its height.
+    @ViewBuilder
+    private var title: some View {
+        let subscriptions = monitor.subscriptions(for: monitor.selectedProvider)
+        if subscriptions.count > 1 {
+            HStack(spacing: 4) {
+                ForEach(subscriptions) { source in
+                    SubscriptionPill(
+                        source: source,
+                        remainingPercent: monitor.snapshot(for: source).remainingPercent,
+                        isSelected: source == monitor.snapshot.source,
+                        action: { monitor.select(subscription: source) }
+                    )
+                }
+            }
+            .frame(height: 18)
+        } else {
+            Text("\(monitor.snapshot.source.name) usage")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(Brand.ink)
+                .frame(height: 18)
         }
     }
 
@@ -409,6 +432,48 @@ private struct UsageFlyoutView: View {
             return "Updated \(updatedAt.formatted(.relative(presentation: .named)))"
         }
         return "Waiting for local CLI"
+    }
+}
+
+/// One signed-in subscription in the pop-out's title. Hovering switches to it, the
+/// same way hovering a ring switches providers.
+private struct SubscriptionPill: View {
+    let source: MonitorSource
+    let remainingPercent: Int?
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Text(source.accountLabel ?? source.provider.name)
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(isSelected ? Brand.ink : Brand.ink2)
+                Text(percentText)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(isSelected ? Brand.mint : Brand.ink3)
+            }
+            .lineLimit(1)
+            .padding(.horizontal, 7)
+            .frame(height: 18)
+            .background(
+                Brand.paper.opacity(isSelected ? 0.12 : 0.05),
+                in: Capsule()
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            if hovering { action() }
+        }
+        .help("Show \(source.name) usage")
+        .accessibilityLabel("\(source.name), \(percentText) remaining")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var percentText: String {
+        remainingPercent.map { "\($0)%" } ?? "—"
     }
 }
 
@@ -688,17 +753,17 @@ private struct HUDButton: View {
 // MARK: - Shared pieces
 
 private struct CompanyLogo: View {
-    let source: MonitorSource
+    let provider: Provider
 
     var body: some View {
         Group {
-            if let image = OfficialBrandAssets.image(for: source) {
+            if let image = OfficialBrandAssets.image(for: provider) {
                 Image(nsImage: image)
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
             } else {
-                Image(systemName: source.symbol)
+                Image(systemName: provider.symbol)
                     .resizable()
                     .scaledToFit()
                     .foregroundStyle(Brand.ink)
@@ -715,8 +780,8 @@ private enum OfficialBrandAssets {
     ) ?? appIcon(at: "/Applications/ChatGPT.app")
     private static let cursor = appIcon(at: "/Applications/Cursor.app")
 
-    static func image(for source: MonitorSource) -> NSImage? {
-        switch source {
+    static func image(for provider: Provider) -> NSImage? {
+        switch provider {
         case .claude: claude
         case .codex: codex
         case .cursor: cursor

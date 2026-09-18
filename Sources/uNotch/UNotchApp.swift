@@ -72,12 +72,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func rebuildStatusMenu(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        for source in monitor?.sources ?? MonitorSource.allCases {
-            let value = monitor?.remainingFraction(for: source).map {
-                "\(Int(($0 * 100).rounded()))% remaining"
+        // The menu has room for every signed-in subscription at once.
+        let sources = monitor.map { monitor in
+            monitor.providers.flatMap { monitor.subscriptions(for: $0) }
+        } ?? MonitorSource.defaults
+        for source in sources {
+            let value = monitor?.snapshot(for: source).remainingPercent.map {
+                "\($0)% remaining"
             } ?? "Waiting for CLI"
             let item = NSMenuItem(title: "\(source.name)  ·  \(value)", action: nil, keyEquivalent: "")
-            item.image = StatusMenuBrandAssets.image(for: source)
+            item.image = StatusMenuBrandAssets.image(for: source.provider)
             item.isEnabled = false
             menu.addItem(item)
         }
@@ -175,9 +179,9 @@ private enum MenuBarLogo {
 }
 
 private enum StatusMenuBrandAssets {
-    static func image(for source: MonitorSource) -> NSImage? {
+    static func image(for provider: Provider) -> NSImage? {
         let path: String
-        switch source {
+        switch provider {
         case .claude: path = "/Applications/Claude.app"
         case .codex: path = "/Applications/ChatGPT.app"
         case .cursor: path = "/Applications/Cursor.app"

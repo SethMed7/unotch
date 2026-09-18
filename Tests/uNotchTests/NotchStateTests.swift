@@ -123,17 +123,17 @@ final class NotchStateTests: XCTestCase {
     }
 
     func testProviderHoverZonesMapFromTopToBottom() {
-        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: 20, railHeight: 210), .claude)
-        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: 105, railHeight: 210), .codex)
-        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: 200, railHeight: 210), .cursor)
+        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: 20, railHeight: 210), .claude)
+        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: 105, railHeight: 210), .codex)
+        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: 200, railHeight: 210), .cursor)
     }
 
     func testRailFooterIsReservedForSettingsGear() {
         let rail = HUDMetrics.railHeight(providerCount: 3)
         let footer = HUDMetrics.railFooterHeight
-        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: rail - footer - 1, railHeight: rail, footerHeight: footer), .cursor)
-        XCTAssertNil(ProviderHoverGeometry.source(distanceFromTop: rail - footer + 1, railHeight: rail, footerHeight: footer))
-        XCTAssertNil(ProviderHoverGeometry.source(distanceFromTop: rail - 5, railHeight: rail, footerHeight: footer))
+        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: rail - footer - 1, railHeight: rail, footerHeight: footer), .cursor)
+        XCTAssertNil(ProviderHoverGeometry.provider(distanceFromTop: rail - footer + 1, railHeight: rail, footerHeight: footer))
+        XCTAssertNil(ProviderHoverGeometry.provider(distanceFromTop: rail - 5, railHeight: rail, footerHeight: footer))
     }
 
     func testRailShrinksToTheInstalledProviders() {
@@ -147,12 +147,12 @@ final class NotchStateTests: XCTestCase {
     }
 
     func testHoverRowsFollowTheInstalledProviders() {
-        let sources: [MonitorSource] = [.claude, .cursor]
-        let rail = HUDMetrics.railHeight(providerCount: sources.count)
+        let providers: [Provider] = [.claude, .cursor]
+        let rail = HUDMetrics.railHeight(providerCount: providers.count)
         let footer = HUDMetrics.railFooterHeight
-        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: 10, railHeight: rail, footerHeight: footer, sources: sources), .claude)
-        XCTAssertEqual(ProviderHoverGeometry.source(distanceFromTop: rail - footer - 5, railHeight: rail, footerHeight: footer, sources: sources), .cursor)
-        XCTAssertNil(ProviderHoverGeometry.source(distanceFromTop: 10, railHeight: rail, footerHeight: footer, sources: []))
+        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: 10, railHeight: rail, footerHeight: footer, providers: providers), .claude)
+        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: rail - footer - 5, railHeight: rail, footerHeight: footer, providers: providers), .cursor)
+        XCTAssertNil(ProviderHoverGeometry.provider(distanceFromTop: 10, railHeight: rail, footerHeight: footer, providers: []))
     }
 
     func testMonitorShowsOnlyInstalledProvidersAndReselects() {
@@ -160,17 +160,169 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(monitor.snapshot.source, .codex)
 
         monitor.detectInstalledSources()
-        XCTAssertEqual(monitor.sources, [.claude, .cursor])
+        XCTAssertEqual(monitor.providers, [.claude, .cursor])
         XCTAssertEqual(monitor.snapshot.source, .claude, "a provider that is not installed cannot stay selected")
 
-        monitor.cycleSource()
+        monitor.cycleProvider()
         XCTAssertEqual(monitor.snapshot.source, .cursor)
     }
 
     func testNothingInstalledKeepsEveryProviderVisible() {
         let monitor = UsageMonitor(fetcher: StubFetcher(installed: []))
         monitor.detectInstalledSources()
-        XCTAssertEqual(monitor.sources, MonitorSource.allCases)
+        XCTAssertEqual(monitor.sources, MonitorSource.defaults)
+        XCTAssertEqual(monitor.providers, Provider.allCases)
+    }
+
+    func testExtraClaudeSignInsAreFoundByTheirConfigFile() throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("unotch-home-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        for folder in [".claude", ".claude-dev", ".claude-worktrees", ".claude-work"] {
+            try FileManager.default.createDirectory(
+                at: home.appendingPathComponent(folder),
+                withIntermediateDirectories: true
+            )
+        }
+        // The default sign-in keeps `.claude.json` beside `~/.claude`, never inside it.
+        for file in [".claude.json", ".claude-dev/.claude.json", ".claude-work/.claude.json"] {
+            try Data("{}".utf8).write(to: home.appendingPathComponent(file))
+        }
+
+        XCTAssertEqual(
+            CLIUsageFetcher.claudeConfigDirectories(home: home),
+            [".claude-dev", ".claude-work"].map { home.appendingPathComponent($0).path }
+        )
+    }
+
+    func testSecondSubscriptionIsNamedAfterItsConfigDirectory() {
+        let dev = MonitorSource(provider: .claude, configDirectory: "/Users/someone/.claude-dev")
+        XCTAssertEqual(dev.accountLabel, "dev")
+        XCTAssertEqual(dev.name, "Claude (dev)")
+        XCTAssertNotEqual(dev, .claude)
+        XCTAssertNotEqual(dev.id, MonitorSource.claude.id)
+        XCTAssertNil(MonitorSource.claude.accountLabel)
+        XCTAssertEqual(MonitorSource.claude.name, "Claude")
+    }
+
+    func testSecondSubscriptionSharesItsProvidersRing() async {
+        let dev = MonitorSource(provider: .claude, configDirectory: "/Users/someone/.claude-dev")
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.claude, dev, .codex],
+            snapshots: [
+                .claude: StubFetcher.loaded(.claude, remaining: 0.86),
+                dev: StubFetcher.loaded(dev, remaining: 0.40)
+            ]
+        ))
+        monitor.detectInstalledSources()
+        XCTAssertEqual(monitor.providers, [.claude, .codex], "the rail holds one ring per provider")
+        XCTAssertEqual(monitor.subscriptions(for: .claude), [.claude], "nothing is offered before it is proven signed in")
+
+        monitor.refreshAll()
+        await settle { monitor.subscriptions(for: .claude).count == 2 }
+        XCTAssertEqual(monitor.subscriptions(for: .claude), [.claude, dev])
+        XCTAssertEqual(monitor.providers, [.claude, .codex])
+
+        monitor.select(.claude)
+        XCTAssertEqual(monitor.snapshot.source, .claude)
+        XCTAssertEqual(try XCTUnwrap(monitor.remainingFraction(for: .claude)), 0.86, accuracy: 0.000_001)
+
+        monitor.select(subscription: dev)
+        XCTAssertEqual(monitor.snapshot.source, dev)
+        XCTAssertEqual(try XCTUnwrap(monitor.remainingFraction(for: .claude)), 0.40, accuracy: 0.000_001, "the ring follows the pop-out's selection")
+
+        monitor.cycleProvider()
+        monitor.cycleProvider()
+        XCTAssertEqual(monitor.snapshot.source, dev, "each provider remembers its subscription")
+    }
+
+    func testSignedOutSubscriptionIsNotOffered() async {
+        let dev = MonitorSource(provider: .claude, configDirectory: "/Users/someone/.claude-dev")
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.claude, dev],
+            snapshots: [
+                .claude: StubFetcher.loaded(.claude, remaining: 0.86),
+                dev: .unavailable(source: dev, message: "Sign in with Claude Code")
+            ]
+        ))
+        monitor.select(subscription: dev)
+        monitor.refreshAll()
+        await settle { monitor.snapshot(for: dev).state == .unavailable("Sign in with Claude Code") }
+
+        XCTAssertEqual(monitor.subscriptions(for: .claude), [.claude])
+        XCTAssertEqual(monitor.snapshot.source, .claude, "a hidden subscription cannot stay selected")
+    }
+
+    func testProviderWithNoSignInStillExplainsItself() async {
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.claude],
+            snapshots: [.claude: .unavailable(source: .claude, message: "Sign in with Claude Code")]
+        ))
+        monitor.refreshAll()
+        await settle { monitor.snapshot.statusMessage != nil }
+        XCTAssertEqual(monitor.providers, [.claude])
+        XCTAssertEqual(monitor.snapshot.statusMessage, "Sign in with Claude Code")
+    }
+
+    func testFailedReadDoesNotHideASignedInSubscription() async {
+        let dev = MonitorSource(provider: .claude, configDirectory: "/Users/someone/.claude-dev")
+        final class Flaky: UsageFetching, @unchecked Sendable {
+            var fails = false
+            let dev: MonitorSource
+            init(dev: MonitorSource) { self.dev = dev }
+            func installedSources() -> [MonitorSource] { [.claude, dev] }
+            func fetchUsage(for source: MonitorSource) async -> UsageSnapshot {
+                fails && source == dev
+                    ? .failed(source: source, message: "CLI usage read timed out")
+                    : StubFetcher.loaded(source, remaining: 0.5)
+            }
+        }
+        let fetcher = Flaky(dev: dev)
+        let monitor = UsageMonitor(fetcher: fetcher)
+        monitor.refreshAll()
+        await settle { monitor.subscriptions(for: .claude).count == 2 }
+
+        fetcher.fails = true
+        monitor.refreshAll()
+        await settle { monitor.snapshot(for: dev).statusMessage != nil }
+        XCTAssertEqual(monitor.subscriptions(for: .claude), [.claude, dev], "a timeout is not proof of a sign-out")
+    }
+
+    /// Lets the monitor's fetch tasks land on the main actor.
+    private func settle(_ condition: () -> Bool) async {
+        for _ in 0..<200 where !condition() {
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+    }
+
+    func testOnlyASecondSubscriptionInstalledIsSelectedOnDetection() {
+        let dev = MonitorSource(provider: .claude, configDirectory: "/Users/someone/.claude-dev")
+        let monitor = UsageMonitor(fetcher: StubFetcher(installed: [dev]))
+        monitor.detectInstalledSources()
+        XCTAssertEqual(monitor.snapshot.source, dev)
+    }
+
+    func testClaudeParserKeepsTheSubscriptionItWasReadFor() throws {
+        let dev = MonitorSource(provider: .claude, configDirectory: "/Users/someone/.claude-dev")
+        let encoded = try JSONSerialization.data(withJSONObject: ["result": "Current session: 10% used"])
+        XCTAssertEqual(try UsageCLIParser.claude(encoded, source: dev).source, dev)
+        XCTAssertEqual(try UsageCLIParser.claude(encoded).source, .claude)
+    }
+
+    func testClaudeSignedOutIsOnlyReportedWhenTheCLISaysSo() {
+        XCTAssertTrue(UsageCLIParser.claudeIsSignedOut(Data(#"{"loggedIn":false,"authMethod":"none"}"#.utf8)))
+        XCTAssertFalse(UsageCLIParser.claudeIsSignedOut(Data(#"{"loggedIn":true,"authMethod":"claude.ai"}"#.utf8)))
+        XCTAssertFalse(UsageCLIParser.claudeIsSignedOut(Data("not json".utf8)))
+    }
+
+    func testFailingExitCanStillReturnOutput() throws {
+        let output = try ProcessRunner.run(
+            executable: "/bin/sh",
+            arguments: ["-c", #"echo '{"loggedIn":false}'; exit 1"#],
+            timeout: 2,
+            requiresCleanExit: false
+        )
+        XCTAssertTrue(UsageCLIParser.claudeIsSignedOut(output))
     }
 
     func testCollapsingClosesSettingsAndHoverZone() {

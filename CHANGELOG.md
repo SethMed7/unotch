@@ -6,6 +6,24 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-09-18
+
+### Added
+- **Multiple Claude subscriptions.** A second Claude Code sign-in kept in its own
+  config directory — for example
+  `alias cc-dev='CLAUDE_CONFIG_DIR=~/.claude-dev claude'` — shows up in Claude's
+  pop-out. The rail keeps one ring per provider; when more than one subscription
+  is signed in, the pop-out's title becomes a switcher (`Claude 86%` · `dev 40%`)
+  named from the folder. Hover or click one to see its limits; the ring follows
+  it, and the menu bar menu lists them all. uNotch finds these by looking for
+  `~/.claude-*/.claude.json`; there is nothing to configure.
+- Only signed-in subscriptions are offered. A signed-out one stays hidden and
+  returns within a minute of signing back in.
+
+### Fixed
+- A signed-out Claude Code says **Sign in with Claude Code** instead of
+  "Claude CLI returned no plan limits".
+
 ## [1.2.4] — 2026-09-15
 
 ### Fixed
@@ -88,7 +106,8 @@ All notable changes to uNotch are recorded here. The format follows
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.2.4...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/SethMed7/unotch/compare/v1.2.4...v1.3.0
 [1.2.4]: https://github.com/SethMed7/unotch/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/SethMed7/unotch/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/SethMed7/unotch/compare/v1.2.1...v1.2.2

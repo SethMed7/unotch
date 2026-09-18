@@ -9,7 +9,13 @@ When it starts, refreshes on its timer, or receives a hover/manual refresh,
 uNotch launches installed provider command-line tools and reads their usage
 output:
 
-- Claude Code: 5-hour, weekly, and Fable plan usage
+- Claude Code: 5-hour, weekly, and Fable plan usage. To find additional Claude
+  Code sign-ins, uNotch lists the names in your home folder and checks whether
+  each `~/.claude-*` folder contains a `.claude.json` file. It checks that the
+  file exists and never opens it. Each sign-in found is read by launching the
+  same CLI with `CLAUDE_CONFIG_DIR` set to that folder. When a read returns no
+  limits, uNotch also runs `claude auth status` and uses only its signed-in flag;
+  a sign-in that reports signed out is hidden from the HUD.
 - Codex: available account rate-limit windows and banked reset counts
 - Cursor: authentication state, then Cursor Models, Other Models, and Grok Bot
   usage. The preferred source is Cursor's dashboard usage RPCs

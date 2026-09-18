@@ -7,7 +7,7 @@ import XCTest
 final class RenderTests: XCTestCase {
     func testExpandedHUDRendersAtExpectedSize() throws {
         let size = HUDMetrics.expandedSize(providerCount: 3)
-        let image = try render(installed: MonitorSource.allCases, settingsOpen: false)
+        let image = try render(installed: MonitorSource.defaults, settingsOpen: false)
         XCTAssertEqual(image.width, Int(size.width) * 2)
         XCTAssertEqual(image.height, Int(size.height) * 2)
         try writeSnapshotIfRequested(image, variable: "UNOTCH_SNAPSHOT")
@@ -15,7 +15,7 @@ final class RenderTests: XCTestCase {
 
     func testSettingsSectionRendersAtExpectedSize() throws {
         let size = HUDMetrics.expandedSize(providerCount: 3)
-        let image = try render(installed: MonitorSource.allCases, settingsOpen: true)
+        let image = try render(installed: MonitorSource.defaults, settingsOpen: true)
         XCTAssertEqual(image.width, Int(size.width) * 2)
         XCTAssertEqual(image.height, Int(size.height) * 2)
         try writeSnapshotIfRequested(image, variable: "UNOTCH_SETTINGS_SNAPSHOT")
@@ -28,16 +28,45 @@ final class RenderTests: XCTestCase {
         try writeSnapshotIfRequested(image, variable: "UNOTCH_SINGLE_SNAPSHOT")
     }
 
+    func testSecondSubscriptionKeepsTheRailAndPanelSize() async throws {
+        let dev = MonitorSource(provider: .claude, configDirectory: "/Users/someone/.claude-dev")
+        let limits = ["5-hour limit", "Weekly limit", "Fable"].map {
+            UsageLimit(label: $0, remainingFraction: 0.4, resetDescription: "Resets Sep 23 at 11am")
+        }
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.claude, dev, .codex, .cursor],
+            snapshots: [
+                .claude: StubFetcher.loaded(.claude, remaining: 0.86),
+                dev: UsageSnapshot(source: dev, limits: limits, updatedAt: Date(), state: .loaded)
+            ]
+        ))
+        monitor.refreshAll()
+        for _ in 0..<200 where monitor.subscriptions(for: .claude).count < 2 {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        monitor.select(subscription: dev)
+
+        let size = HUDMetrics.expandedSize(providerCount: 3)
+        let image = try render(monitor: monitor, settingsOpen: false)
+        XCTAssertEqual(image.width, Int(size.width) * 2)
+        XCTAssertEqual(image.height, Int(size.height) * 2)
+        try writeSnapshotIfRequested(image, variable: "UNOTCH_MULTI_SNAPSHOT")
+    }
+
     private func render(installed: [MonitorSource], settingsOpen: Bool) throws -> CGImage {
         let monitor = UsageMonitor(fetcher: StubFetcher(installed: installed))
         monitor.detectInstalledSources()
+        return try render(monitor: monitor, settingsOpen: settingsOpen)
+    }
+
+    private func render(monitor: UsageMonitor, settingsOpen: Bool) throws -> CGImage {
         let state = NotchState(monitor: monitor)
         state.edge = .left
         state.isExpanded = true
         state.isPointerNearBottom = true
         state.isSettingsOpen = settingsOpen
 
-        let size = HUDMetrics.expandedSize(providerCount: monitor.sources.count)
+        let size = HUDMetrics.expandedSize(providerCount: monitor.providers.count)
         let renderer = ImageRenderer(
             content: NotchRootView(state: state)
                 .frame(width: size.width, height: size.height)

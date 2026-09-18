@@ -38,6 +38,22 @@ All usage is read from command-line tools already authenticated on your Mac.
 uNotch does not ask for, copy, or store provider credentials. Only the providers
 whose CLI is installed appear; the rail shrinks to fit one, two, or three.
 
+### More than one Claude subscription
+
+If you keep a second Claude Code sign-in in its own config directory, uNotch
+finds it automatically:
+
+```sh
+alias cc-dev='CLAUDE_CONFIG_DIR=~/.claude-dev claude'
+```
+
+Any `~/.claude-<name>` folder that Claude Code has used (it contains a
+`.claude.json`) is read with the same `CLAUDE_CONFIG_DIR`. Claude still has one
+ring. Once a second subscription is signed in, the title of Claude's pop-out
+becomes a switcher — `Claude 86%` · `dev 40%` — and the ring follows the one you
+pick. A subscription that is signed out is not shown; run your alias and
+`/login`, and it appears within a minute.
+
 ## Install
 
 1. [Download `uNotch-arm64.dmg`](https://github.com/SethMed7/unotch/releases/latest/download/uNotch-arm64.dmg) — the latest signed release. Release notes are on the [releases page](https://github.com/SethMed7/unotch/releases/latest).
