@@ -174,25 +174,82 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(monitor.providers, Provider.allCases)
     }
 
-    func testExtraClaudeSignInsAreFoundByTheirConfigFile() throws {
+    func testExtraClaudeSignInsAreFoundByTheirConfigFileNotTheirName() throws {
         let home = FileManager.default.temporaryDirectory
             .appendingPathComponent("unotch-home-\(UUID().uuidString)", isDirectory: true)
+            .resolvingSymlinksInPath()
         defer { try? FileManager.default.removeItem(at: home) }
-        for folder in [".claude", ".claude-dev", ".claude-worktrees", ".claude-work"] {
+        let folders = [
+            ".claude", ".claude-dev", ".claude-worktrees", ".cc-work", "claude_personal",
+            ".config/anthropic-team", ".config/git", "Documents/claude-notes", "projects/app"
+        ]
+        for folder in folders {
             try FileManager.default.createDirectory(
                 at: home.appendingPathComponent(folder),
                 withIntermediateDirectories: true
             )
         }
         // The default sign-in keeps `.claude.json` beside `~/.claude`, never inside it.
-        for file in [".claude.json", ".claude-dev/.claude.json", ".claude-work/.claude.json"] {
+        let configs = [
+            ".claude.json", ".claude-dev/.claude.json", ".cc-work/.claude.json",
+            "claude_personal/.claude.json", ".config/anthropic-team/.claude.json",
+            "Documents/claude-notes/.claude.json", "projects/app/.claude.json"
+        ]
+        for file in configs {
             try Data("{}".utf8).write(to: home.appendingPathComponent(file))
+        }
+        try FileManager.default.createSymbolicLink(
+            at: home.appendingPathComponent(".work-link"),
+            withDestinationURL: home.appendingPathComponent(".cc-work")
+        )
+
+        XCTAssertEqual(
+            CLIUsageFetcher.configDirectories(for: .claude, home: home),
+            [".cc-work", ".claude-dev", "claude_personal", ".config/anthropic-team"]
+                .map { home.appendingPathComponent($0).path },
+            "any name counts, a symlink is not a second sign-in, and nothing deeper or privacy-protected is touched"
+        )
+    }
+
+    func testExtraCodexSignInsNeedMoreThanAnAuthFile() throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("unotch-home-\(UUID().uuidString)", isDirectory: true)
+            .resolvingSymlinksInPath()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let files = [
+            ".codex/auth.json", ".codex/config.toml",               // the default, not an extra
+            ".codex-work/auth.json", ".codex-work/config.toml",
+            "openai_team/auth.json", "openai_team/installation_id",
+            ".config/cx/auth.json", ".config/cx/version.json",
+            ".other-tool/auth.json", ".other-tool/sessions/x", ".other-tool/history.jsonl", // generic names prove nothing
+            ".composer/auth.json", ".composer/config.json",         // someone else's auth.json
+            ".codex-empty/installation_id",                         // used, never signed in
+            "Documents/codex/auth.json", "Documents/codex/config.toml"
+        ]
+        for file in files {
+            let url = home.appendingPathComponent(file)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("{}".utf8).write(to: url)
         }
 
         XCTAssertEqual(
-            CLIUsageFetcher.claudeConfigDirectories(home: home),
-            [".claude-dev", ".claude-work"].map { home.appendingPathComponent($0).path }
+            CLIUsageFetcher.configDirectories(for: .codex, home: home),
+            [".codex-work", "openai_team", ".config/cx"].map { home.appendingPathComponent($0).path }
         )
+        XCTAssertEqual(CLIUsageFetcher.configDirectories(for: .cursor, home: home), [], "Cursor has one sign-in per Mac user")
+        XCTAssertEqual(MonitorSource(provider: .codex, configDirectory: home.appendingPathComponent(".codex-work").path).name, "Codex (work)")
+    }
+
+    func testCodexParserKeepsTheSubscriptionItWasReadFor() throws {
+        let work = MonitorSource(provider: .codex, configDirectory: "/Users/someone/.codex-work")
+        let data = Data(#"{"id":2,"result":{"rateLimits":{"primary":{"usedPercent":25,"windowDurationMins":300,"resetsAt":1800000000},"secondary":null}}}"#.utf8)
+        XCTAssertEqual(try UsageCLIParser.codex(data, source: work).source, work)
+        XCTAssertEqual(try UsageCLIParser.codex(data).source, .codex)
+    }
+
+    func testExitStatusAnswersYesNoCLIs() throws {
+        XCTAssertEqual(try ProcessRunner.exitStatus(executable: "/bin/sh", arguments: ["-c", "echo 'Not logged in' >&2; exit 1"], timeout: 2), 1)
+        XCTAssertEqual(try ProcessRunner.exitStatus(executable: "/bin/sh", arguments: ["-c", "exit 0"], timeout: 2), 0)
     }
 
     func testSecondSubscriptionIsNamedAfterItsConfigDirectory() {
@@ -203,6 +260,17 @@ final class NotchStateTests: XCTestCase {
         XCTAssertNotEqual(dev.id, MonitorSource.claude.id)
         XCTAssertNil(MonitorSource.claude.accountLabel)
         XCTAssertEqual(MonitorSource.claude.name, "Claude")
+
+        let labels = [
+            "/Users/someone/.cc-work": "cc-work",
+            "/Users/someone/claude_personal": "personal",
+            "/Users/someone/.config/anthropic-team": "anthropic-team",
+            "/Users/someone/.Claude2": "2",
+            "/Users/someone/.claude": "claude"
+        ]
+        for (folder, label) in labels {
+            XCTAssertEqual(MonitorSource(provider: .claude, configDirectory: folder).accountLabel, label)
+        }
     }
 
     func testSecondSubscriptionSharesItsProvidersRing() async {

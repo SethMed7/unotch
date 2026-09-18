@@ -12,7 +12,7 @@ actor CLIUsageFetcher: UsageFetching {
         await Task.detached(priority: .utility) {
             switch source.provider {
             case .codex:
-                return Self.fetchCodexUsage()
+                return Self.fetchCodexUsage(for: source)
             case .claude:
                 return Self.fetchClaudeUsage(for: source)
             case .cursor:
@@ -25,31 +25,70 @@ actor CLIUsageFetcher: UsageFetching {
         MonitorSource.defaults
             .filter { Self.executablePath(for: $0.provider) != nil }
             .flatMap { source in
-                source.provider == .claude
-                    ? [source] + Self.claudeConfigDirectories().map {
-                        MonitorSource(provider: .claude, configDirectory: $0)
-                    }
-                    : [source]
+                [source] + Self.configDirectories(for: source.provider).map {
+                    MonitorSource(provider: source.provider, configDirectory: $0)
+                }
             }
     }
 
-    /// Extra Claude Code sign-ins, e.g. `alias cc-dev='CLAUDE_CONFIG_DIR=~/.claude-dev claude'`.
-    /// Claude Code keeps `.claude.json` inside the directory only when `CLAUDE_CONFIG_DIR`
-    /// points at it, so that file marks a real second sign-in and skips look-alike
-    /// folders such as `~/.claude-worktrees`. Only names are checked; nothing is read.
-    static func claudeConfigDirectories(
+    /// Extra sign-ins of one CLI, e.g. `alias cc-dev='CLAUDE_CONFIG_DIR=~/.claude-dev claude'`
+    /// or `CODEX_HOME=~/.codex-work codex`. Everyone names these differently, so the
+    /// folder name means nothing; what marks one is what the CLI leaves inside it.
+    /// Looks one level into the home folder and `~/.config`. Only names are checked;
+    /// nothing is read.
+    static func configDirectories(
+        for provider: Provider,
         home: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> [String] {
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: home.path)) ?? []
-        return names
-            .filter { $0.hasPrefix(".claude-") }
-            .sorted()
-            .map { home.appendingPathComponent($0, isDirectory: true) }
-            .filter {
-                FileManager.default.fileExists(atPath: $0.appendingPathComponent(".claude.json").path)
+        let manager = FileManager.default
+        func has(_ name: String, in folder: URL) -> Bool {
+            manager.fileExists(atPath: folder.appendingPathComponent(name).path)
+        }
+
+        let isSignIn: (URL) -> Bool
+        switch provider {
+        case .claude:
+            // Claude Code keeps `.claude.json` inside a directory only when
+            // `CLAUDE_CONFIG_DIR` points at it; the default keeps it beside `~/.claude`.
+            isSignIn = { has(".claude.json", in: $0) }
+        case .codex:
+            // `auth.json` alone is too common a name (Composer has one), so it must sit
+            // beside a name only Codex writes. Generic ones like `sessions` do not count:
+            // a wrong guess would have Codex fill a stranger's folder with its databases.
+            // `~/.codex` is the default, not an extra.
+            let defaultHome = home.appendingPathComponent(".codex").resolvingSymlinksInPath().path
+            isSignIn = { folder in
+                folder.resolvingSymlinksInPath().path != defaultHome
+                    && has("auth.json", in: folder)
+                    && ["config.toml", "version.json", "installation_id"]
+                        .contains { has($0, in: folder) }
             }
-            .map(\.path)
+        case .cursor:
+            // Cursor Agent keeps one sign-in per Mac user, whatever `CURSOR_CONFIG_DIR` says.
+            return []
+        }
+
+        let parents = [home, home.appendingPathComponent(".config", isDirectory: true)]
+        var found: [String] = []
+        for parent in parents {
+            let names = ((try? manager.contentsOfDirectory(atPath: parent.path)) ?? []).sorted()
+            for name in names where parent != home || !privacyProtectedFolders.contains(name) {
+                let folder = parent.appendingPathComponent(name, isDirectory: true)
+                guard isSignIn(folder) else { continue }
+                // Two aliases can reach one folder through a symlink; it is one sign-in.
+                let path = folder.resolvingSymlinksInPath().path
+                if !found.contains(path) { found.append(path) }
+            }
+        }
+        return found
     }
+
+    /// macOS asks the user for permission when an app so much as looks inside these.
+    /// No one keeps a CLI config there, so they are never touched.
+    private static let privacyProtectedFolders: Set<String> = [
+        "Applications", "Desktop", "Documents", "Downloads", "Library",
+        "Movies", "Music", "Pictures", "Public"
+    ]
 
     /// One place that knows where each provider's CLI lives.
     static func executablePath(for provider: Provider) -> String? {
@@ -75,16 +114,30 @@ actor CLIUsageFetcher: UsageFetching {
         }
     }
 
-    private static func fetchCodexUsage() -> UsageSnapshot {
+    private static func fetchCodexUsage(for source: MonitorSource) -> UsageSnapshot {
         guard let executable = executablePath(for: .codex) else {
-            return .unavailable(source: .codex, message: "Codex CLI not found")
+            return .unavailable(source: source, message: "Codex CLI not found")
         }
 
+        let environment = source.configDirectory.map { ["CODEX_HOME": $0] } ?? [:]
         do {
-            let output = try ProcessRunner.codexRateLimits(executable: executable)
-            return try UsageCLIParser.codex(output)
+            let output = try ProcessRunner.codexRateLimits(
+                executable: executable,
+                additionalEnvironment: environment
+            )
+            return try UsageCLIParser.codex(output, source: source)
         } catch {
-            return .failed(source: .codex, message: userFacingMessage(error))
+            // `codex login status` answers from local files and says it with its exit
+            // code: 1 is "not logged in". Worth one quick launch after a failed read.
+            if let status = try? ProcessRunner.exitStatus(
+                executable: executable,
+                arguments: ["login", "status"],
+                timeout: 6,
+                additionalEnvironment: environment
+            ), status == 1 {
+                return .unavailable(source: source, message: "Sign in with Codex CLI")
+            }
+            return .failed(source: source, message: userFacingMessage(error))
         }
     }
 
@@ -204,7 +257,11 @@ actor CLIUsageFetcher: UsageFetching {
 enum UsageCLIParser {
     static let noClaudeLimits = CLIUsageError("Claude CLI returned no plan limits")
 
-    static func codex(_ data: Data, now: Date = Date()) throws -> UsageSnapshot {
+    static func codex(
+        _ data: Data,
+        source: MonitorSource = .codex,
+        now: Date = Date()
+    ) throws -> UsageSnapshot {
         let decoder = JSONDecoder()
         let response = data
             .split(separator: 0x0A)
@@ -245,7 +302,7 @@ enum UsageCLIParser {
         }
 
         return UsageSnapshot(
-            source: .codex,
+            source: source,
             limits: parsedLimits,
             updatedAt: now,
             state: .loaded
@@ -564,6 +621,39 @@ enum ProcessRunner {
         additionalEnvironment: [String: String] = [:],
         requiresCleanExit: Bool = true
     ) throws -> Data {
+        let result = try launch(
+            executable: executable,
+            arguments: arguments,
+            timeout: timeout,
+            additionalEnvironment: additionalEnvironment
+        )
+        guard result.status == 0 || !requiresCleanExit else {
+            throw CLIUsageError("CLI usage read failed")
+        }
+        return result.output
+    }
+
+    /// For CLIs that answer a yes/no question with their exit code.
+    static func exitStatus(
+        executable: String,
+        arguments: [String],
+        timeout: TimeInterval,
+        additionalEnvironment: [String: String] = [:]
+    ) throws -> Int32 {
+        try launch(
+            executable: executable,
+            arguments: arguments,
+            timeout: timeout,
+            additionalEnvironment: additionalEnvironment
+        ).status
+    }
+
+    private static func launch(
+        executable: String,
+        arguments: [String],
+        timeout: TimeInterval,
+        additionalEnvironment: [String: String]
+    ) throws -> (output: Data, status: Int32) {
         let process = Process()
         let output = Pipe()
         let didExit = DispatchSemaphore(value: 0)
@@ -589,13 +679,13 @@ enum ProcessRunner {
         }
 
         let stdout = output.fileHandleForReading.readDataToEndOfFile()
-        guard process.terminationStatus == 0 || !requiresCleanExit else {
-            throw CLIUsageError("CLI usage read failed")
-        }
-        return stdout
+        return (stdout, process.terminationStatus)
     }
 
-    static func codexRateLimits(executable: String) throws -> Data {
+    static func codexRateLimits(
+        executable: String,
+        additionalEnvironment: [String: String] = [:]
+    ) throws -> Data {
         let process = Process()
         let input = Pipe()
         let output = Pipe()
@@ -603,6 +693,12 @@ enum ProcessRunner {
 
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = ["app-server", "--stdio"]
+        if !additionalEnvironment.isEmpty {
+            process.environment = ProcessInfo.processInfo.environment.merging(
+                additionalEnvironment,
+                uniquingKeysWith: { _, newValue in newValue }
+            )
+        }
         process.standardInput = input
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice

@@ -61,12 +61,15 @@ struct MonitorSource: Hashable, Identifiable, Sendable {
         configDirectory.map { "\(provider.rawValue):\($0)" } ?? provider.rawValue
     }
 
-    /// "dev" for `~/.claude-dev`; nil for the default subscription.
+    /// The folder's own name, minus the noise: "dev" for `~/.claude-dev`, "cc-work" for
+    /// `~/.cc-work`. nil for the default subscription.
     var accountLabel: String? {
         guard let configDirectory else { return nil }
         let folder = URL(fileURLWithPath: configDirectory).lastPathComponent
-        let prefix = ".\(provider.rawValue)-"
-        return folder.hasPrefix(prefix) ? String(folder.dropFirst(prefix.count)) : folder
+        let name = String(folder.drop { $0 == "." })
+        guard name.lowercased().hasPrefix(provider.rawValue) else { return name.isEmpty ? folder : name }
+        let rest = name.dropFirst(provider.rawValue.count).drop { "-_. ".contains($0) }
+        return rest.isEmpty ? name : String(rest)
     }
 
     var name: String {

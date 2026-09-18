@@ -6,6 +6,29 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-09-18
+
+### Added
+- **Multiple Codex subscriptions.** A second Codex sign-in kept in its own home —
+  `CODEX_HOME=~/.codex-work codex` — joins Codex's pop-out the same way Claude's
+  do. uNotch recognises a Codex home by its `auth.json` sitting beside something
+  only Codex writes (`config.toml`, `installation_id`, …), so another tool's `auth.json`
+  is never mistaken for one.
+- Codex sign-in is validated like Claude's: a signed-out Codex says **Sign in
+  with Codex CLI**, and a signed-out extra subscription stays hidden.
+
+### Changed
+- Extra subscriptions are found by what the folder is, not what it is called.
+  Any folder counts — `~/.cc-work`, `~/claude_personal`,
+  `~/.config/anthropic-team` — as long as the CLI has used it as its home. 1.3.0
+  only noticed folders named `~/.claude-*`. The switcher label is the folder's
+  name with the dot and any provider prefix removed.
+- With three or more subscriptions, the unselected ones in the switcher shrink to
+  a few letters; hovering one opens it back up.
+
+Cursor Agent keeps one sign-in per Mac user regardless of `CURSOR_CONFIG_DIR`, so
+it has no extra subscriptions to find; its sign-in check is unchanged.
+
 ## [1.3.0] — 2026-09-18
 
 ### Added
@@ -106,7 +129,8 @@ All notable changes to uNotch are recorded here. The format follows
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/SethMed7/unotch/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/SethMed7/unotch/compare/v1.2.4...v1.3.0
 [1.2.4]: https://github.com/SethMed7/unotch/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/SethMed7/unotch/compare/v1.2.2...v1.2.3

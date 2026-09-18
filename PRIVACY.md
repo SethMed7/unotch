@@ -9,14 +9,20 @@ When it starts, refreshes on its timer, or receives a hover/manual refresh,
 uNotch launches installed provider command-line tools and reads their usage
 output:
 
-- Claude Code: 5-hour, weekly, and Fable plan usage. To find additional Claude
-  Code sign-ins, uNotch lists the names in your home folder and checks whether
-  each `~/.claude-*` folder contains a `.claude.json` file. It checks that the
-  file exists and never opens it. Each sign-in found is read by launching the
-  same CLI with `CLAUDE_CONFIG_DIR` set to that folder. When a read returns no
-  limits, uNotch also runs `claude auth status` and uses only its signed-in flag;
-  a sign-in that reports signed out is hidden from the HUD.
-- Codex: available account rate-limit windows and banked reset counts
+- Claude Code: 5-hour, weekly, and Fable plan usage. When a read returns no
+  limits, uNotch also runs `claude auth status` and uses only its signed-in flag.
+- Codex: available account rate-limit windows and banked reset counts. When a
+  read fails, uNotch also runs `codex login status` and uses only its exit code.
+- Additional Claude Code and Codex sign-ins: uNotch lists the names in your home
+  folder and in `~/.config`, and checks whether each folder there contains the
+  files that CLI leaves in its home (`.claude.json` for Claude Code; `auth.json`
+  beside `config.toml`, `version.json`, or `installation_id` for Codex). It checks that the files exist and never opens
+  them. It goes no deeper, and it never looks inside Desktop, Documents,
+  Downloads, Library, Movies, Music, Pictures, Public, or Applications. Each
+  sign-in found is read by launching the same CLI with `CLAUDE_CONFIG_DIR` or
+  `CODEX_HOME` set to that folder; the CLI may update its own files there, as it
+  does whenever you run it. A sign-in that reports signed out is hidden from the
+  HUD.
 - Cursor: authentication state, then Cursor Models, Other Models, and Grok Bot
   usage. The preferred source is Cursor's dashboard usage RPCs
   (`GetCurrentPeriodUsage` and `GetSandUsageStatus` on `api2.cursor.sh`),

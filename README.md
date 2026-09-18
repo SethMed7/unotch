@@ -38,21 +38,27 @@ All usage is read from command-line tools already authenticated on your Mac.
 uNotch does not ask for, copy, or store provider credentials. Only the providers
 whose CLI is installed appear; the rail shrinks to fit one, two, or three.
 
-### More than one Claude subscription
+### More than one subscription
 
-If you keep a second Claude Code sign-in in its own config directory, uNotch
-finds it automatically:
+If you keep a second Claude Code or Codex sign-in in its own folder, uNotch finds
+it automatically:
 
 ```sh
 alias cc-dev='CLAUDE_CONFIG_DIR=~/.claude-dev claude'
+alias cx-work='CODEX_HOME=~/.codex-work codex'
 ```
 
-Any `~/.claude-<name>` folder that Claude Code has used (it contains a
-`.claude.json`) is read with the same `CLAUDE_CONFIG_DIR`. Claude still has one
-ring. Once a second subscription is signed in, the title of Claude's pop-out
-becomes a switcher — `Claude 86%` · `dev 40%` — and the ring follows the one you
-pick. A subscription that is signed out is not shown; run your alias and
-`/login`, and it appears within a minute.
+The folder and the alias can be called anything. uNotch looks one level into your
+home folder and `~/.config` for a directory the CLI has used as its home — Claude
+Code leaves a `.claude.json` there; Codex leaves an `auth.json` beside its
+`config.toml` — and reads it with the same environment variable.
+The label comes from the folder name (`~/.claude-dev` → `dev`).
+
+Each provider still has one ring. Once a second subscription is signed in, the
+title of that provider's pop-out becomes a switcher — `Claude 86%` · `dev 40%` —
+and the ring follows the one you pick. A subscription that is signed out is not
+shown; sign in with your alias and it appears within a minute. Cursor Agent keeps
+a single sign-in per Mac user, so it always has exactly one.
 
 ## Install
 

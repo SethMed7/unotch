@@ -378,6 +378,10 @@ private struct UsageFlyoutView: View {
                         source: source,
                         remainingPercent: monitor.snapshot(for: source).remainingPercent,
                         isSelected: source == monitor.snapshot.source,
+                        // Two fit in full. Past that the others shrink to a few letters;
+                        // hovering one selects it, which opens it back up.
+                        isCompact: subscriptions.count > 2 && source != monitor.snapshot.source,
+                        compactLetters: subscriptions.count > 3 ? 3 : 4,
                         action: { monitor.select(subscription: source) }
                     )
                 }
@@ -441,18 +445,28 @@ private struct SubscriptionPill: View {
     let source: MonitorSource
     let remainingPercent: Int?
     let isSelected: Bool
+    let isCompact: Bool
+    let compactLetters: Int
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                Text(source.accountLabel ?? source.provider.name)
+                // Folder names run long. The name gives way before the number does.
+                Text(isCompact ? String(label.prefix(compactLetters)) : label)
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(isSelected ? Brand.ink : Brand.ink2)
-                Text(percentText)
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(isSelected ? Brand.mint : Brand.ink3)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: isCompact, vertical: false)
+                    .frame(minWidth: isCompact ? nil : 26, alignment: .leading)
+                if !isCompact {
+                    Text(percentText)
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(isSelected ? Brand.mint : Brand.ink3)
+                        .fixedSize()
+                        .layoutPriority(2)
+                }
             }
             .lineLimit(1)
             .padding(.horizontal, 7)
@@ -464,12 +478,17 @@ private struct SubscriptionPill: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .layoutPriority(isSelected || isCompact ? 1 : 0)
         .onHover { hovering in
             if hovering { action() }
         }
         .help("Show \(source.name) usage")
         .accessibilityLabel("\(source.name), \(percentText) remaining")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var label: String {
+        source.accountLabel ?? source.provider.name
     }
 
     private var percentText: String {
