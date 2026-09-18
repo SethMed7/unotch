@@ -178,6 +178,39 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(placed.pointerY, 32)
     }
 
+    /// Hovering the gear opens settings. The callout has to cover the gear and the
+    /// whole footer, or the pointer would have to climb the rail — and crossing a
+    /// ring would close settings before you arrived.
+    func testSettingsCalloutCoversTheGearSoYouCanReachIt() {
+        for count in 1...4 {
+            let rail = HUDMetrics.railHeight(providerCount: count)
+            let panel = HUDMetrics.expandedSize(providerCount: count).height
+            let gear = HUDMetrics.gearCenterY(providerCount: count)
+            let footerTop = rail - HUDMetrics.railFooterHeight
+            let placed = HUDMetrics.calloutPlacement(
+                anchorY: gear,
+                calloutHeight: HUDMetrics.settingsCalloutHeight,
+                panelHeight: panel
+            )
+            let top = placed.offset
+            let bottom = placed.offset + HUDMetrics.settingsCalloutHeight
+            let pointer = top + placed.pointerY
+            XCTAssertLessThanOrEqual(top, footerTop, "\(count) rings: callout must reach the footer")
+            XCTAssertGreaterThanOrEqual(bottom, gear, "\(count) rings: callout must cover the gear")
+            XCTAssertGreaterThanOrEqual(bottom, rail, "\(count) rings: callout must meet the rail's bottom so the gap to the gear is inside it")
+            XCTAssertEqual(pointer, gear, accuracy: Brand.Radius.callout + HUDMetrics.calloutPointerHalfHeight, "\(count) rings: pointer aims at the gear, or as close as the corner allows")
+        }
+    }
+
+    func testOpenSettingsIsIdempotent() {
+        let state = NotchState(monitor: UsageMonitor())
+        XCTAssertFalse(state.isSettingsOpen)
+        state.openSettings()
+        XCTAssertTrue(state.isSettingsOpen)
+        state.openSettings()
+        XCTAssertTrue(state.isSettingsOpen)
+    }
+
     func testFourRingsFitWhenGrokBotJoins() {
         XCTAssertEqual(HUDMetrics.railHeight(providerCount: 4), 318)
         XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 4).height, 318)

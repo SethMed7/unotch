@@ -6,6 +6,15 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.5.2] — 2026-09-18
+
+### Changed
+- The selected ring is only the mint stroke and the mint percent under it. The
+  card behind a hovered provider is gone.
+- The settings gear has no disc. Hovering it turns the icon mint and opens
+  settings; the section hangs from the gear so the pointer can travel into it
+  without crossing a ring.
+
 ## [1.5.1] — 2026-09-18
 
 ### Fixed
@@ -177,7 +186,8 @@ it has no extra subscriptions to find; its sign-in check is unchanged.
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.5.2...HEAD
+[1.5.2]: https://github.com/SethMed7/unotch/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/SethMed7/unotch/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/SethMed7/unotch/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/SethMed7/unotch/compare/v1.3.0...v1.4.0

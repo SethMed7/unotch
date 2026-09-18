@@ -252,14 +252,22 @@ final class SideNotchWindowManager: NSObject {
             return
         }
 
-        // The footer belongs to the settings gear; only the rows above it switch providers.
+        // The footer belongs to the settings gear. Hovering it opens settings the
+        // same way hovering a ring opens that provider; the callout hangs from the
+        // gear so the pointer can travel into it without crossing a ring.
         let distanceFromTop = panel.frame.height - local.y
         guard let provider = ProviderHoverGeometry.provider(
             distanceFromTop: distanceFromTop,
             railHeight: railHeight,
             footerHeight: Metrics.railFooterHeight,
             providers: state.monitor.providers
-        ) else { return }
+        ) else {
+            hoveredProvider = nil
+            if distanceFromTop > railHeight - Metrics.railFooterHeight {
+                state.openSettings()
+            }
+            return
+        }
         guard provider != hoveredProvider else { return }
 
         hoveredProvider = provider

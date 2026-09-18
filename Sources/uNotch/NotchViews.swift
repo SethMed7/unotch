@@ -208,31 +208,32 @@ private struct ProviderRailView: View {
     }
 }
 
-/// The gear in the rail's footer.
+/// The gear in the rail's footer. Hovering it opens settings, the way hovering a ring
+/// opens that provider; hovering a ring again is the way back. The gear turns mint
+/// while hovered or open — no disc, no card.
 private struct SettingsDockButton: View {
     @ObservedObject var state: NotchState
     @State private var isHovering = false
 
     var body: some View {
         Button {
-            state.toggleSettings()
+            state.openSettings()
         } label: {
             Image(systemName: "gearshape.fill")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(state.isSettingsOpen || isHovering ? Brand.ink : Brand.ink2)
+                .foregroundStyle(state.isSettingsOpen || isHovering ? Brand.mint : Brand.ink2)
                 .rotationEffect(.degrees(state.isSettingsOpen ? 30 : 0))
                 .frame(width: 28, height: 28)
-                .background(
-                    state.isSettingsOpen ? Brand.hairline : Brand.divider,
-                    in: Circle()
-                )
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .onHoverAlways { isHovering = $0 }
+        .onHoverAlways { hovering in
+            isHovering = hovering
+            if hovering { state.openSettings() }
+        }
         .animation(Brand.fade, value: state.isSettingsOpen)
         .animation(Brand.fade, value: isHovering)
-        .help(state.isSettingsOpen ? "Back to usage" : "Settings")
+        .help("Settings")
         .accessibilityLabel("Settings")
     }
 }
@@ -264,19 +265,18 @@ private struct SourceRingButton: View {
             }
             .frame(width: 36, height: 36)
 
+            // The selected ring is mint and so is its number; that is the whole
+            // selection state. No card behind it.
             Text(percentText)
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(Brand.ink2)
+                .foregroundStyle(isSelected ? Brand.mint : Brand.ink2)
         }
         // Pinned to the row's top so the ring's centre is a known distance down
         // (`HUDMetrics.ringCenterOffset`), where the callout's pointer aims.
         .padding(.top, HUDMetrics.ringCenterOffset - 18)
         .frame(width: 50, height: HUDMetrics.ringRowHeight, alignment: .top)
-        .background(
-            Brand.paper.opacity(isSelected ? 0.055 : 0),
-            in: RoundedRectangle(cornerRadius: Brand.Radius.control, style: .continuous)
-        )
+        .animation(Brand.fade, value: isSelected)
         .contentShape(Rectangle())
         .onHoverAlways { hovering in
             if hovering { action() }

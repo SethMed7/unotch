@@ -86,8 +86,8 @@ The installer supports Apple silicon Macs running macOS 14 Sonoma or newer.
   a minute.
 - Use the refresh control for an immediate read from the selected local CLI.
 - Drag the rail vertically or across the display to place it on either edge.
-- The settings gear sits at the bottom of the rail. It opens a small section with
-  everything uNotch can be told:
+- Hover the settings gear at the bottom of the rail. The section hangs from the
+  gear so you can move into it, and it holds everything uNotch can be told:
   - **Side** — dock to the left or right edge.
   - **Position** — a drag handle to move the HUD anywhere along the edge.
   - **Update & Restart** — fetch the latest signed release and relaunch.

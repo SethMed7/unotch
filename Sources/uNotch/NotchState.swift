@@ -464,6 +464,10 @@ final class NotchState: ObservableObject {
         isSettingsOpen.toggle()
     }
 
+    func openSettings() {
+        if !isSettingsOpen { isSettingsOpen = true }
+    }
+
     func dragChanged(_ translation: CGSize) {
         onDragChanged?(translation)
     }

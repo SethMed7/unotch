@@ -139,29 +139,31 @@
     @media (max-width: 480px) { .hud-wrap { width: calc(358px * .84); height: calc(252px * .84); } .hud { transform: scale(.84); } .desk { min-height: 280px; } }
     @media (max-width: 380px) { .hud-wrap { width: calc(358px * .74); height: calc(252px * .74); } .hud { transform: scale(.74); } }
     .rail { width: 58px; height: 252px; border-radius: 0 var(--un-r-rail) var(--un-r-rail) 0; background: var(--un-glass-strong); -webkit-backdrop-filter: var(--un-glass-blur); backdrop-filter: var(--un-glass-blur); border: 1px solid var(--un-hairline); border-left: 0; display: flex; flex-direction: column; align-items: center; padding-top: 11px; }
-    .ring { width: 50px; height: 56px; display: flex; flex-direction: column; align-items: center; gap: 3px; border-radius: var(--un-r-control); margin-bottom: 10px; }
-    .ring.on { background: rgba(244,247,246,0.055); }
+    .ring { width: 50px; height: 56px; display: flex; flex-direction: column; align-items: center; gap: 3px; margin-bottom: 10px; }
     .ring .dial { position: relative; width: 36px; height: 36px; display: block; }
     .ring .dial svg { position: absolute; inset: 0; width: 36px; height: 36px; }
     .ring .dial img { position: absolute; left: 50%; top: 50%; width: 17px; height: 17px; transform: translate(-50%, -50%); border-radius: 4px; }
     .ring .disc { fill: rgba(0,0,0,0.08); }
     .ring.on .disc { fill: rgba(244,247,246,0.09); }
     .ring .pct { font: 600 9px/1 var(--un-font-display); font-variant-numeric: tabular-nums; color: var(--un-ink-2); }
+    .ring.on .pct { color: var(--un-mint); }
     .ring .track { fill: none; stroke: rgba(244,247,246,0.10); stroke-width: 4; }
     .ring .arc { fill: none; stroke: rgba(244,247,246,0.58); stroke-width: 4; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
     .ring.on .arc { stroke: var(--un-mint); }
-    .hud:has(#settings:checked) .ring.on { background: transparent; }
     .hud:has(#settings:checked) .ring.on .arc { stroke: rgba(244,247,246,0.58); }
+    .hud:has(#settings:checked) .ring.on .pct { color: var(--un-ink-2); }
     .footer-rail { margin-top: auto; height: 42px; display: flex; align-items: center; justify-content: center; width: 100%; }
     .gear { width: 58px; height: 42px; display: grid; place-items: center; cursor: pointer; }
-    .gear span { width: 28px; height: 28px; border-radius: 50%; background: var(--un-divider); color: var(--un-ink-2); display: grid; place-items: center; transition: transform 200ms var(--un-ease-out), background 120ms; }
+    .gear span { width: 28px; height: 28px; display: grid; place-items: center; color: var(--un-ink-2); transition: color 120ms, transform 200ms var(--un-ease-out); }
     .gear svg { width: 12px; height: 12px; }
-    .gear:hover span { background: var(--un-hairline); color: var(--un-ink); }
-    .hud:has(#settings:checked) .gear span { background: var(--un-hairline); color: var(--un-ink); transform: rotate(30deg); }
-    .hud:has(#settings:focus-visible) .gear span { outline: 2px solid var(--un-mint); outline-offset: 2px; }
+    .gear:hover span { color: var(--un-mint); }
+    .hud:has(#settings:checked) .gear span { color: var(--un-mint); transform: rotate(30deg); }
+    .hud:has(#settings:focus-visible) .gear span { outline: 2px solid var(--un-mint); outline-offset: 2px; border-radius: 50%; }
     #settings { position: absolute; opacity: 0; width: 1px; height: 1px; margin: -1px; overflow: hidden; }
-    .callout { position: relative; align-self: center; width: 292px; padding: 14px 16px 14px 24px; background: var(--un-glass); -webkit-backdrop-filter: var(--un-glass-blur); backdrop-filter: var(--un-glass-blur); border: 1px solid var(--un-hairline); border-radius: var(--un-r-callout); box-shadow: var(--un-shadow-callout); color: var(--un-ink); }
-    .callout::before { content: ""; position: absolute; left: -1px; top: 50%; width: 10px; height: 18px; transform: translate(-100%, -50%); background: var(--un-glass); clip-path: polygon(100% 0, 0 50%, 100% 100%); }
+    .callout { position: relative; align-self: flex-start; width: 292px; padding: 14px 16px 14px 24px; background: var(--un-glass); -webkit-backdrop-filter: var(--un-glass-blur); backdrop-filter: var(--un-glass-blur); border: 1px solid var(--un-hairline); border-radius: var(--un-r-callout); box-shadow: var(--un-shadow-callout); color: var(--un-ink); }
+    .callout::before { content: ""; position: absolute; left: -1px; top: 23px; width: 10px; height: 18px; transform: translateX(-100%); background: var(--un-glass); clip-path: polygon(100% 0, 0 50%, 100% 100%); }
+    .hud:has(#settings:checked) .prefs { align-self: flex-end; }
+    .hud:has(#settings:checked) .prefs::before { top: auto; bottom: 12px; }
     .callout .head { display: flex; align-items: center; gap: 9px; }
     .callout .head .logo { width: 22px; height: 22px; border-radius: 5px; display: block; }
     .callout .head .title { font: 700 15px/1.2 var(--un-font-display); }
@@ -327,7 +329,7 @@
               <div class="head">
                 <img class="mark" src="brand/logo/mark.svg?v=2" width="20" height="20" alt="">
                 <div class="title">uNotch</div>
-                <span class="ver">1.5.1</span>
+                <span class="ver">1.5.2</span>
               </div>
               <div class="srow"><span class="lab">Side</span><span class="seg"><span class="on">Left</span><span>Right</span></span></div>
               <div class="srow"><span class="lab">Position</span><span class="grip"><svg viewBox="0 0 8 12" fill="currentColor"><circle cx="2" cy="2" r="1.25"/><circle cx="6" cy="2" r="1.25"/><circle cx="2" cy="6" r="1.25"/><circle cx="6" cy="6" r="1.25"/><circle cx="2" cy="10" r="1.25"/><circle cx="6" cy="10" r="1.25"/></svg>Drag to move</span></div>
@@ -336,7 +338,7 @@
             </div>
           </div>
         </div>
-        <p class="hint"><span class="hov">Click the <kbd>gear</kbd> at the bottom of the rail.</span><span class="tap">Tap the <kbd>gear</kbd> at the bottom of the rail.</span></p>
+        <p class="hint"><span class="hov">Hover the <kbd>gear</kbd> at the bottom of the rail.</span><span class="tap">Tap the <kbd>gear</kbd> at the bottom of the rail.</span></p>
       </div>
     </div>
 
@@ -365,7 +367,7 @@
         <li><div><h3>Hover the edge</h3><p>Rest the pointer on the cue for 150 ms. The rail and callout slide in with fresh numbers from the selected CLI.</p></div></li>
         <li><div><h3>Switch providers</h3><p>Hover a logo on the rail to switch. Stale readings refresh on their own; the refresh control forces one. With more than one sign-in to a provider, hover a cell in the callout to look at it and click one to make it the favourite its ring reports.</p></div></li>
         <li><div><h3>Put it where you want</h3><p>Drag the rail up, down, or across the display. Release near either edge and uNotch docks there and remembers.</p></div></li>
-        <li><div><h3>Settings, when you reach for them</h3><p>The gear at the bottom of the rail opens a small section with a side picker, a drag handle, Update &amp; Restart, and Quit. That is the whole settings surface.</p></div></li>
+        <li><div><h3>Settings, when you reach for them</h3><p>Hover the gear at the bottom of the rail. The section hangs from it — side picker, a drag handle, Update &amp; Restart, and Quit — so the pointer can travel into it. That is the whole settings surface.</p></div></li>
       </ol>
     </section>
 
