@@ -82,8 +82,8 @@ The installer supports Apple silicon Macs running macOS 14 Sonoma or newer.
 - Move the pointer to the subtle cue at the screen edge and hold for 150 ms to
   reveal the HUD.
 - Hover a provider logo to switch providers and refresh stale usage. The hovered
-  ring and its percent turn red when remaining is under 10%; 10% and above stay
-  mint. Providers without an installed CLI are not shown; install one and its
+  ring and its percent turn red when remaining is under 10% — a full red circle
+  even at 0%. 10% and above stay mint. Providers without an installed CLI are not shown; install one and its
   ring appears within a minute.
 - Use the refresh control for an immediate read from the selected local CLI.
 - Drag the rail vertically or across the display to place it on either edge.

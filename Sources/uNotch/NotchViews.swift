@@ -38,6 +38,13 @@ enum HUDMetrics {
         return isLowRemaining(remaining) ? Brand.alert : Brand.mint
     }
 
+    /// A depleted hovered ring is a full circle. Trimming to remaining would hide
+    /// the colour at 0% — the case that needs the warning most.
+    static func ringFill(remaining: Double?, selected: Bool) -> CGFloat {
+        if selected && isLowRemaining(remaining) { return 1 }
+        return remaining ?? 0
+    }
+
     /// Centre of the ring at `index`, measured from the top of the rail.
     static func ringCenterY(index: Int) -> CGFloat {
         railTopPadding + CGFloat(index) * (ringRowHeight + ringRowSpacing) + ringCenterOffset
@@ -263,7 +270,7 @@ private struct SourceRingButton: View {
                 Circle()
                     .stroke(Brand.paper.opacity(0.10), lineWidth: 4)
                 Circle()
-                    .trim(from: 0, to: remaining ?? 0)
+                    .trim(from: 0, to: HUDMetrics.ringFill(remaining: remaining, selected: isSelected))
                     .stroke(
                         HUDMetrics.ringAccent(remaining: remaining, selected: isSelected),
                         style: StrokeStyle(lineWidth: 4, lineCap: .round)

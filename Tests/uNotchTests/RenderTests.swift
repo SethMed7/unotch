@@ -94,7 +94,7 @@ final class RenderTests: XCTestCase {
             installed: [.claude, .codex, .cursor],
             snapshots: [
                 .claude: StubFetcher.loaded(.claude, remaining: 0.66),
-                .codex: StubFetcher.loaded(.codex, remaining: 0.08),
+                .codex: StubFetcher.loaded(.codex, remaining: 0),
                 .cursor: StubFetcher.loaded(.cursor, remaining: 0.95)
             ]
         ))

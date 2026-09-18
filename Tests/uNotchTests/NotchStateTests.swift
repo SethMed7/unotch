@@ -212,6 +212,10 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(HUDMetrics.ringAccent(remaining: 0.08, selected: false), Brand.paper.opacity(0.58), "unhovered rings stay quiet")
         XCTAssertEqual(HUDMetrics.ringAccent(remaining: 0.08, selected: true), Brand.alert)
         XCTAssertEqual(HUDMetrics.ringAccent(remaining: 0.40, selected: true), Brand.mint)
+        XCTAssertEqual(HUDMetrics.ringFill(remaining: 0, selected: true), 1, "0% still draws a full red ring")
+        XCTAssertEqual(HUDMetrics.ringFill(remaining: 0.08, selected: true), 1)
+        XCTAssertEqual(HUDMetrics.ringFill(remaining: 0, selected: false), 0, "unhovered 0% stays an empty pale ring")
+        XCTAssertEqual(HUDMetrics.ringFill(remaining: 0.40, selected: true), 0.40)
     }
 
     func testOpenSettingsIsIdempotent() {

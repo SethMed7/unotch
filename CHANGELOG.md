@@ -6,6 +6,12 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.5.4] — 2026-09-18
+
+### Fixed
+- A hovered ring with **0%** remaining is a full red circle. 1.5.3 only recoloured
+  the remaining arc, so an empty ring stayed invisible.
+
 ## [1.5.3] — 2026-09-18
 
 ### Changed
@@ -192,7 +198,8 @@ it has no extra subscriptions to find; its sign-in check is unchanged.
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.5.3...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.5.4...HEAD
+[1.5.4]: https://github.com/SethMed7/unotch/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/SethMed7/unotch/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/SethMed7/unotch/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/SethMed7/unotch/compare/v1.5.0...v1.5.1
