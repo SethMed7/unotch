@@ -32,11 +32,14 @@ dashboard window and no Dock icon.
 | --- | --- | --- |
 | Claude | Claude Code CLI `/usage` | 5-hour, weekly, and Fable limits |
 | Codex | Codex app-server rate limits | Plan windows, plus banked resets when any remain |
-| Cursor | Cursor dashboard usage RPCs (Agent `/usage` fallback) | Cursor Models, Other Models, and Grok Bot |
+| Cursor | Cursor dashboard usage RPCs (Agent `/usage` fallback) | Cursor Models and Other Models |
+| Grok Bot | Cursor dashboard usage RPCs, through the Cursor sign-in | Grok Bot's own allowance |
 
 All usage is read from command-line tools already authenticated on your Mac.
 uNotch does not ask for, copy, or store provider credentials. Only the providers
-whose CLI is installed appear; the rail shrinks to fit one, two, or three.
+whose CLI is installed appear; the rail sizes to fit one to four. Grok Bot has no
+CLI of its own — its ring sits under Cursor's and appears once a read shows your
+Cursor plan includes it.
 
 ### More than one subscription
 
@@ -54,11 +57,16 @@ Code leaves a `.claude.json` there; Codex leaves an `auth.json` beside its
 `config.toml` — and reads it with the same environment variable.
 The label comes from the folder name (`~/.claude-dev` → `dev`).
 
-Each provider still has one ring. Once a second subscription is signed in, the
-title of that provider's pop-out becomes a switcher — `Claude 86%` · `dev 40%` —
-and the ring follows the one you pick. A subscription that is signed out is not
-shown; sign in with your alias and it appears within a minute. Cursor Agent keeps
-a single sign-in per Mac user, so it always has exactly one.
+Each provider still has one ring. Once a second subscription is signed in, a
+strip appears under the pop-out's title with one cell per subscription — its name
+over its remaining percent. **Hover** a cell to look at it; the limits and the ring
+follow. **Click** a cell to make it the favourite (marked ★): that is the one the
+provider opens on and its ring reports whenever the HUD is closed. Click it again
+to clear. The cells share the row equally, so five subscriptions read as cleanly
+as two; a long name trails off, and hovering it shows the full name. A
+subscription that is signed out is not shown; sign in with your alias and it
+appears within a minute. Cursor Agent keeps a single sign-in per Mac user, so it
+always has exactly one.
 
 ## Install
 
@@ -78,8 +86,8 @@ The installer supports Apple silicon Macs running macOS 14 Sonoma or newer.
   a minute.
 - Use the refresh control for an immediate read from the selected local CLI.
 - Drag the rail vertically or across the display to place it on either edge.
-- Hover near the **bottom** of the HUD to reveal the settings gear. It opens a
-  small section with everything uNotch can be told:
+- The settings gear sits at the bottom of the rail. It opens a small section with
+  everything uNotch can be told:
   - **Side** — dock to the left or right edge.
   - **Position** — a drag handle to move the HUD anywhere along the edge.
   - **Update & Restart** — fetch the latest signed release and relaunch.

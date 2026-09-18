@@ -185,6 +185,7 @@ private enum StatusMenuBrandAssets {
         case .claude: path = "/Applications/Claude.app"
         case .codex: path = "/Applications/ChatGPT.app"
         case .cursor: path = "/Applications/Cursor.app"
+        case .grokBot: path = "/Applications/Grok Bot.app"
         }
         guard FileManager.default.fileExists(atPath: path) else { return nil }
         let image = NSWorkspace.shared.icon(forFile: path)

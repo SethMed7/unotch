@@ -23,13 +23,15 @@ output:
   `CODEX_HOME` set to that folder; the CLI may update its own files there, as it
   does whenever you run it. A sign-in that reports signed out is hidden from the
   HUD.
-- Cursor: authentication state, then Cursor Models, Other Models, and Grok Bot
-  usage. The preferred source is Cursor's dashboard usage RPCs
-  (`GetCurrentPeriodUsage` and `GetSandUsageStatus` on `api2.cursor.sh`),
-  authenticated with the existing `cursor-access-token` keychain item created
-  by Cursor Agent. The token is read into memory for that request and is not
-  stored. If the token cannot be read, uNotch falls back to scraping Agent
-  CLI `/usage`, which does not include Grok Bot.
+- Cursor: authentication state, then Cursor Models and Other Models usage. The
+  preferred source is Cursor's dashboard usage RPC (`GetCurrentPeriodUsage` on
+  `api2.cursor.sh`), authenticated with the existing `cursor-access-token`
+  keychain item created by Cursor Agent. The token is read into memory for that
+  request and is not stored. If the token cannot be read, uNotch falls back to
+  scraping Agent CLI `/usage`.
+- Grok Bot: its allowance, through the same Cursor sign-in
+  (`GetSandUsageStatus` on `api2.cursor.sh`, with the same token handling). A
+  plan without Grok Bot reports no allowance, and nothing is shown.
 
 The output can contain usage percentages, reset times, and provider account
 metadata. uNotch extracts only the values needed for the HUD. Raw standard error
@@ -37,13 +39,16 @@ is discarded. Standard output exists only in process memory while it is parsed.
 
 ## Data uNotch stores
 
-uNotch stores two preferences through macOS `UserDefaults`:
+uNotch stores three preferences through macOS `UserDefaults`:
 
 - selected screen edge
 - vertical position on the screen
+- the favourite subscription per provider, if you have set one: the provider's
+  name and, for an extra sign-in, the path of its config folder (for example
+  `~/.claude-dev`)
 
-It does not persist usage output, provider identifiers, prompts, projects,
-filenames, credentials, or command history.
+It does not persist usage output, account identifiers, prompts, projects,
+credentials, or command history.
 
 To remove its preferences:
 

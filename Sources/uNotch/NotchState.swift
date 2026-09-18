@@ -22,11 +22,19 @@ enum Provider: String, CaseIterable, Identifiable, Sendable {
     case claude
     case codex
     case cursor
+    /// Cursor's Grok Bot. Its usage comes from the Cursor sign-in, but it is its own
+    /// allowance, so it gets its own ring under Cursor's.
+    case grokBot
 
     var id: String { rawValue }
 
     var name: String {
-        rawValue.capitalized
+        switch self {
+        case .claude: "Claude"
+        case .codex: "Codex"
+        case .cursor: "Cursor"
+        case .grokBot: "Grok Bot"
+        }
     }
 
     var symbol: String {
@@ -34,7 +42,15 @@ enum Provider: String, CaseIterable, Identifiable, Sendable {
         case .claude: "sparkle"
         case .codex: "chevron.left.forwardslash.chevron.right"
         case .cursor: "cursorarrow.rays"
+        case .grokBot: "face.smiling"
         }
+    }
+
+    /// A CLI provider stays on the rail so its "not found" or "sign in" message can be
+    /// read. Grok Bot has no CLI of its own and is not part of every Cursor plan, so it
+    /// earns its ring with a successful read.
+    var needsProof: Bool {
+        self == .grokBot
     }
 }
 
@@ -54,11 +70,21 @@ struct MonitorSource: Hashable, Identifiable, Sendable {
     static let claude = MonitorSource(provider: .claude)
     static let codex = MonitorSource(provider: .codex)
     static let cursor = MonitorSource(provider: .cursor)
-    /// One default subscription per provider, in rail order.
+    static let grokBot = MonitorSource(provider: .grokBot)
+    /// One default subscription per CLI, in rail order. Grok Bot is not here: it is
+    /// found through Cursor, never on its own.
     static let defaults: [MonitorSource] = [.claude, .codex, .cursor]
 
     var id: String {
         configDirectory.map { "\(provider.rawValue):\($0)" } ?? provider.rawValue
+    }
+
+    /// The reverse of `id`, for a favourite read back from defaults.
+    init?(id: String) {
+        let parts = id.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        guard let first = parts.first, let provider = Provider(rawValue: String(first)) else { return nil }
+        self.provider = provider
+        self.configDirectory = parts.count > 1 ? String(parts[1]) : nil
     }
 
     /// The folder's own name, minus the noise: "dev" for `~/.claude-dev`, "cc-work" for
@@ -177,29 +203,44 @@ struct UsageSnapshot: Equatable, Sendable {
 
 @MainActor
 final class UsageMonitor: ObservableObject {
-    /// Providers on the rail: the ones whose CLI is installed. The rail is sized from
-    /// this list. If nothing is installed, every provider stays visible so the
-    /// "not found" messages explain what to install.
-    @Published private(set) var providers: [Provider] = Provider.allCases
+    /// Providers on the rail: the ones whose CLI is installed, plus Grok Bot once a read
+    /// has proven it. The rail is sized from this list. If nothing is installed, every
+    /// CLI provider stays visible so the "not found" messages explain what to install.
+    @Published private(set) var providers: [Provider] = MonitorSource.defaults.map(\.provider)
     @Published private(set) var selectedProvider: Provider = .codex
     /// Every subscription found for those providers, signed in or not. All of them are
     /// read on each cycle so a sign-in that comes back shows up within a minute.
     private(set) var sources: [MonitorSource] = MonitorSource.defaults
 
     @Published private var snapshots: [MonitorSource: UsageSnapshot]
-    @Published private var selectedSources: [Provider: MonitorSource] = [:]
+    /// The subscription being looked at in each provider's pop-out, while the HUD is
+    /// open. Hovering a cell sets it; collapsing the HUD clears it.
+    @Published private var lookedAt: [Provider: MonitorSource] = [:]
+    /// The subscription each provider opens on and its ring reports: the one the user
+    /// clicked to make the default. Kept across launches.
+    @Published private(set) var favorites: [Provider: MonitorSource]
     /// Subscriptions whose last conclusive read proved a sign-in. A failed read proves
     /// nothing either way, so it leaves this alone.
     private var signedIn: Set<MonitorSource> = []
     private let fetcher: any UsageFetching
+    private let defaults: UserDefaults
     private var timer: Timer?
     private var refreshTasks: [MonitorSource: Task<Void, Never>] = [:]
 
-    init(fetcher: any UsageFetching = CLIUsageFetcher()) {
+    private static let favoritesDefaultsKey = "uNotch.favoriteSubscriptions"
+
+    init(fetcher: any UsageFetching = CLIUsageFetcher(), defaults: UserDefaults = .standard) {
         self.fetcher = fetcher
+        self.defaults = defaults
         snapshots = Dictionary(uniqueKeysWithValues: MonitorSource.defaults.map {
             ($0, UsageSnapshot(source: $0))
         })
+        let stored = defaults.dictionary(forKey: Self.favoritesDefaultsKey) as? [String: String] ?? [:]
+        favorites = stored.reduce(into: [:]) { result, entry in
+            guard let provider = Provider(rawValue: entry.key),
+                  let source = MonitorSource(id: entry.value), source.provider == provider else { return }
+            result[provider] = source
+        }
     }
 
     deinit {
@@ -226,10 +267,34 @@ final class UsageMonitor: ObservableObject {
         return [all.first ?? MonitorSource(provider: provider)]
     }
 
+    /// What the provider shows: the subscription being looked at while the HUD is open,
+    /// otherwise the favourite, otherwise the CLI's own default sign-in.
     func selectedSource(for provider: Provider) -> MonitorSource {
         let visible = subscriptions(for: provider)
-        if let chosen = selectedSources[provider], visible.contains(chosen) { return chosen }
+        if let looked = lookedAt[provider], visible.contains(looked) { return looked }
+        if let favorite = favorites[provider], visible.contains(favorite) { return favorite }
         return visible[0]
+    }
+
+    func isFavorite(_ source: MonitorSource) -> Bool {
+        favorites[source.provider] == source
+    }
+
+    /// Makes a subscription the one its provider opens on; a second click on the
+    /// favourite clears it, and the provider goes back to its default sign-in.
+    func toggleFavorite(_ source: MonitorSource) {
+        if favorites[source.provider] == source {
+            favorites[source.provider] = nil
+        } else {
+            favorites[source.provider] = source
+        }
+        let stored = favorites.reduce(into: [String: String]()) { $0[$1.key.rawValue] = $1.value.id }
+        defaults.set(stored, forKey: Self.favoritesDefaultsKey)
+    }
+
+    /// Forgets what was being looked at, so every ring reports its favourite again.
+    func clearLookedAt() {
+        if !lookedAt.isEmpty { lookedAt = [:] }
     }
 
     func start() {
@@ -253,9 +318,14 @@ final class UsageMonitor: ObservableObject {
         let installed = fetcher.installedSources()
         let next = installed.isEmpty ? MonitorSource.defaults : installed
         if next != sources { sources = next }
+        updateProviders()
+    }
 
+    /// One ring per provider with a source worth showing, in source order.
+    private func updateProviders() {
         var nextProviders: [Provider] = []
-        for source in next where !nextProviders.contains(source.provider) {
+        for source in sources where !nextProviders.contains(source.provider) {
+            if source.provider.needsProof && !signedIn.contains(source) { continue }
             nextProviders.append(source.provider)
         }
         if nextProviders != providers { providers = nextProviders }
@@ -269,7 +339,7 @@ final class UsageMonitor: ObservableObject {
     }
 
     func select(subscription source: MonitorSource) {
-        selectedSources[source.provider] = source
+        lookedAt[source.provider] = source
         select(source.provider)
     }
 
@@ -324,6 +394,7 @@ final class UsageMonitor: ObservableObject {
             }
             self.snapshots[source] = freshSnapshot
             self.refreshTasks[source] = nil
+            if source.provider.needsProof { self.updateProviders() }
         }
     }
 
@@ -332,6 +403,7 @@ final class UsageMonitor: ObservableObject {
         case .codex: 45
         case .claude: 60
         case .cursor: 60
+        case .grokBot: 60
         }
     }
 }
@@ -350,16 +422,15 @@ final class NotchState: ObservableObject {
     @Published var isExpanded = false {
         didSet {
             guard !isExpanded else { return }
-            // Collapsing always returns the HUD to usage; settings never persist.
+            // Collapsing always returns the HUD to usage; settings never persist, and
+            // neither does a subscription that was only being looked at.
             isSettingsOpen = false
-            isPointerNearBottom = false
+            monitor.clearLookedAt()
         }
     }
 
     /// The settings section replaces the usage callout while open.
     @Published var isSettingsOpen = false
-    /// True while the pointer is within the bottom hover zone of the expanded HUD.
-    @Published var isPointerNearBottom = false
 
     let monitor: UsageMonitor
     let updater: AppUpdater

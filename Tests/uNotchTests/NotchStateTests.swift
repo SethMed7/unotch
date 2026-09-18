@@ -101,39 +101,59 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(snapshot.remainingPercent, 95)
     }
 
-    func testCursorDashboardParserReadsModelPoolsAndGrokBot() throws {
+    func testCursorDashboardParserReadsModelPoolsOnly() throws {
         let period = Data(#"{"billingCycleEnd":"1789819317000","planUsage":{"autoPercentUsed":5.0,"apiPercentUsed":78.0,"totalPercentUsed":16.0}}"#.utf8)
-        let sand = Data(#"{"usagePercent":8.0,"hasNonZeroIncludedLimit":true,"nextResetTimestampUtc":"2026-09-18T19:21:59.215Z"}"#.utf8)
-        let snapshot = try UsageCLIParser.cursorDashboard(period: period, sand: sand)
-        XCTAssertEqual(snapshot.limits.map(\.label), ["Cursor Models", "Other Models", "Grok Bot"])
+        let snapshot = try UsageCLIParser.cursorDashboard(period: period)
+        XCTAssertEqual(snapshot.limits.map(\.label), ["Cursor Models", "Other Models"], "Grok Bot has its own ring now")
         XCTAssertEqual(snapshot.limits[0].remainingFraction, 0.95, accuracy: 0.000_001)
         XCTAssertEqual(snapshot.limits[1].remainingFraction, 0.22, accuracy: 0.000_001)
         XCTAssertFalse(snapshot.limits[1].contributesToSummary)
-        XCTAssertEqual(snapshot.limits[2].remainingFraction, 0.92, accuracy: 0.000_001)
-        XCTAssertFalse(snapshot.limits[2].contributesToSummary)
-        XCTAssertNotNil(snapshot.limits[2].resetAt)
         XCTAssertEqual(snapshot.remainingPercent, 95)
     }
 
-    func testCursorDashboardParserSkipsPooledGrokBot() throws {
-        let period = Data(#"{"planUsage":{"autoPercentUsed":5,"apiPercentUsed":10}}"#.utf8)
-        let sand = Data(#"{"usagePercent":8.0,"hasNonZeroIncludedLimit":true,"usesPooledEnterpriseAllowance":true}"#.utf8)
-        let snapshot = try UsageCLIParser.cursorDashboard(period: period, sand: sand)
-        XCTAssertEqual(snapshot.limits.map(\.label), ["Cursor Models", "Other Models"])
+    func testGrokBotParserReadsItsOwnAllowance() throws {
+        let sand = Data(#"{"usagePercent":8.0,"hasNonZeroIncludedLimit":true,"nextResetTimestampUtc":"2026-09-18T19:21:59.215Z"}"#.utf8)
+        let snapshot = try UsageCLIParser.grokBot(sand)
+        XCTAssertEqual(snapshot.source, .grokBot)
+        XCTAssertEqual(snapshot.state, .loaded)
+        XCTAssertEqual(snapshot.limits.map(\.label), ["Grok Bot"])
+        XCTAssertEqual(snapshot.limits[0].remainingFraction, 0.92, accuracy: 0.000_001)
+        XCTAssertTrue(snapshot.limits[0].contributesToSummary, "alone in its snapshot, it drives its own ring")
+        XCTAssertNotNil(snapshot.limits[0].resetAt)
+        XCTAssertEqual(snapshot.remainingPercent, 92)
+    }
+
+    func testGrokBotParserReportsAPlanWithoutItAsUnavailable() throws {
+        let pooled = Data(#"{"usagePercent":8.0,"hasNonZeroIncludedLimit":true,"usesPooledEnterpriseAllowance":true}"#.utf8)
+        XCTAssertEqual(try UsageCLIParser.grokBot(pooled).state, .unavailable("Not included in this Cursor plan"))
+        let none = Data(#"{"usagePercent":0,"hasNonZeroIncludedLimit":false}"#.utf8)
+        XCTAssertEqual(try UsageCLIParser.grokBot(none).state, .unavailable("Not included in this Cursor plan"))
+        XCTAssertThrowsError(try UsageCLIParser.grokBot(Data("not json".utf8)), "garbage is a failed read, not proof of anything")
     }
 
     func testProviderHoverZonesMapFromTopToBottom() {
-        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: 20, railHeight: 210), .claude)
-        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: 105, railHeight: 210), .codex)
-        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: 200, railHeight: 210), .cursor)
+        let providers: [Provider] = [.claude, .codex, .cursor]
+        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: 20, railHeight: 210, providers: providers), .claude)
+        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: 105, railHeight: 210, providers: providers), .codex)
+        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: 200, railHeight: 210, providers: providers), .cursor)
     }
 
     func testRailFooterIsReservedForSettingsGear() {
+        let providers: [Provider] = [.claude, .codex, .cursor]
         let rail = HUDMetrics.railHeight(providerCount: 3)
         let footer = HUDMetrics.railFooterHeight
-        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: rail - footer - 1, railHeight: rail, footerHeight: footer), .cursor)
-        XCTAssertNil(ProviderHoverGeometry.provider(distanceFromTop: rail - footer + 1, railHeight: rail, footerHeight: footer))
-        XCTAssertNil(ProviderHoverGeometry.provider(distanceFromTop: rail - 5, railHeight: rail, footerHeight: footer))
+        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: rail - footer - 1, railHeight: rail, footerHeight: footer, providers: providers), .cursor)
+        XCTAssertNil(ProviderHoverGeometry.provider(distanceFromTop: rail - footer + 1, railHeight: rail, footerHeight: footer, providers: providers))
+        XCTAssertNil(ProviderHoverGeometry.provider(distanceFromTop: rail - 5, railHeight: rail, footerHeight: footer, providers: providers))
+    }
+
+    func testFourRingsFitWhenGrokBotJoins() {
+        XCTAssertEqual(HUDMetrics.railHeight(providerCount: 4), 318)
+        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 4).height, 318)
+        let providers: [Provider] = [.claude, .codex, .cursor, .grokBot]
+        let rail = HUDMetrics.railHeight(providerCount: 4)
+        let footer = HUDMetrics.railFooterHeight
+        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: rail - footer - 1, railHeight: rail, footerHeight: footer, providers: providers), .grokBot)
     }
 
     func testRailShrinksToTheInstalledProviders() {
@@ -141,9 +161,20 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(HUDMetrics.railHeight(providerCount: 2), 186)
         XCTAssertEqual(HUDMetrics.railHeight(providerCount: 1), 120)
         // The panel never drops below the tallest usage callout, which must still fit.
-        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 3).height, 252)
-        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 2).height, HUDMetrics.usageCalloutTripleHeight)
-        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 1).height, HUDMetrics.usageCalloutTripleHeight)
+        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 3).height, HUDMetrics.usageCalloutMaxHeight)
+        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 2).height, HUDMetrics.usageCalloutMaxHeight)
+        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 1).height, HUDMetrics.usageCalloutMaxHeight)
+    }
+
+    func testSubscriptionStripAddsOneRowToTheCallout() {
+        XCTAssertEqual(HUDMetrics.usageCalloutHeight(forLimitCount: 3), HUDMetrics.usageCalloutTripleHeight)
+        XCTAssertEqual(HUDMetrics.usageCalloutHeight(forLimitCount: 3, subscriptionCount: 1), HUDMetrics.usageCalloutTripleHeight)
+        // The strip is one row whether two subscriptions share it or five.
+        XCTAssertEqual(HUDMetrics.usageCalloutHeight(forLimitCount: 3, subscriptionCount: 2), 260)
+        XCTAssertEqual(HUDMetrics.usageCalloutHeight(forLimitCount: 3, subscriptionCount: 5), 260)
+        XCTAssertEqual(HUDMetrics.usageCalloutHeight(forLimitCount: 1, subscriptionCount: 5), 180)
+        XCTAssertEqual(HUDMetrics.usageCalloutMaxHeight, 260)
+        XCTAssertGreaterThan(HUDMetrics.usageCalloutMaxHeight, HUDMetrics.railHeight(providerCount: 3))
     }
 
     func testHoverRowsFollowTheInstalledProviders() {
@@ -167,11 +198,87 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(monitor.snapshot.source, .cursor)
     }
 
-    func testNothingInstalledKeepsEveryProviderVisible() {
+    func testNothingInstalledKeepsEveryCLIProviderVisible() {
         let monitor = UsageMonitor(fetcher: StubFetcher(installed: []))
         monitor.detectInstalledSources()
         XCTAssertEqual(monitor.sources, MonitorSource.defaults)
-        XCTAssertEqual(monitor.providers, Provider.allCases)
+        XCTAssertEqual(monitor.providers, [.claude, .codex, .cursor], "Grok Bot has no CLI to point at")
+    }
+
+    func testGrokBotEarnsItsRingWithARead() async {
+        let grok = UsageSnapshot(
+            source: .grokBot,
+            limits: [UsageLimit(label: "Grok Bot", remainingFraction: 0.92)],
+            updatedAt: Date(),
+            state: .loaded
+        )
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.cursor, .grokBot],
+            snapshots: [.cursor: StubFetcher.loaded(.cursor, remaining: 0.95), .grokBot: grok]
+        ))
+        monitor.detectInstalledSources()
+        XCTAssertEqual(monitor.providers, [.cursor], "no ring until the plan is known to include it")
+
+        monitor.refreshAll()
+        await settle { monitor.providers.count == 2 }
+        XCTAssertEqual(monitor.providers, [.cursor, .grokBot])
+        XCTAssertEqual(try XCTUnwrap(monitor.remainingFraction(for: .grokBot)), 0.92, accuracy: 0.000_001)
+    }
+
+    func testGrokBotStaysOffTheRailWhenThePlanLacksIt() async {
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.cursor, .grokBot],
+            snapshots: [
+                .cursor: StubFetcher.loaded(.cursor, remaining: 0.95),
+                .grokBot: .unavailable(source: .grokBot, message: "Not included in this Cursor plan")
+            ]
+        ))
+        monitor.refreshAll()
+        await settle { monitor.snapshot(for: .grokBot).statusMessage != nil }
+        XCTAssertEqual(monitor.providers, [.cursor])
+    }
+
+    func testFavoriteIsWhatTheProviderOpensOn() async throws {
+        let defaults = TestDefaults.fresh()
+        defer { TestDefaults.clear() }
+        let dev = MonitorSource(provider: .claude, configDirectory: "/Users/someone/.claude-dev")
+        let fetcher = StubFetcher(
+            installed: [.claude, dev],
+            snapshots: [
+                .claude: StubFetcher.loaded(.claude, remaining: 0.86),
+                dev: StubFetcher.loaded(dev, remaining: 0.40)
+            ]
+        )
+        let monitor = UsageMonitor(fetcher: fetcher, defaults: defaults)
+        monitor.refreshAll()
+        await settle { monitor.subscriptions(for: .claude).count == 2 }
+        XCTAssertEqual(monitor.selectedSource(for: .claude), .claude, "without a favourite, the CLI's own sign-in opens")
+
+        monitor.toggleFavorite(dev)
+        XCTAssertTrue(monitor.isFavorite(dev))
+        XCTAssertEqual(monitor.selectedSource(for: .claude), dev)
+        XCTAssertEqual(try XCTUnwrap(monitor.remainingFraction(for: .claude)), 0.40, accuracy: 0.000_001, "the ring reports the favourite")
+
+        monitor.select(subscription: .claude)
+        XCTAssertEqual(monitor.selectedSource(for: .claude), .claude, "looking at another one wins while the HUD is open")
+        monitor.clearLookedAt()
+        XCTAssertEqual(monitor.selectedSource(for: .claude), dev, "and the favourite is back once it closes")
+
+        let relaunched = UsageMonitor(fetcher: fetcher, defaults: defaults)
+        XCTAssertTrue(relaunched.isFavorite(dev), "favourites survive a relaunch")
+
+        monitor.toggleFavorite(dev)
+        XCTAssertFalse(monitor.isFavorite(dev))
+        XCTAssertEqual(monitor.selectedSource(for: .claude), .claude)
+        XCTAssertNil(defaults.dictionary(forKey: "uNotch.favoriteSubscriptions")?["claude"])
+    }
+
+    func testSubscriptionIDRoundTrips() {
+        let dev = MonitorSource(provider: .claude, configDirectory: "/Users/someone/.claude-dev")
+        XCTAssertEqual(MonitorSource(id: dev.id), dev)
+        XCTAssertEqual(MonitorSource(id: MonitorSource.codex.id), .codex)
+        XCTAssertEqual(MonitorSource(id: "cursor:/Users/x/with:colon")?.configDirectory, "/Users/x/with:colon")
+        XCTAssertNil(MonitorSource(id: "gemini"))
     }
 
     func testExtraClaudeSignInsAreFoundByTheirConfigFileNotTheirName() throws {
@@ -393,17 +500,29 @@ final class NotchStateTests: XCTestCase {
         XCTAssertTrue(UsageCLIParser.claudeIsSignedOut(output))
     }
 
-    func testCollapsingClosesSettingsAndHoverZone() {
-        let state = NotchState(monitor: UsageMonitor())
+    func testCollapsingClosesSettingsAndForgetsWhatWasLookedAt() async {
+        let dev = MonitorSource(provider: .claude, configDirectory: "/Users/someone/.claude-dev")
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.claude, dev],
+            snapshots: [
+                .claude: StubFetcher.loaded(.claude, remaining: 0.86),
+                dev: StubFetcher.loaded(dev, remaining: 0.40)
+            ]
+        ))
+        monitor.refreshAll()
+        await settle { monitor.subscriptions(for: .claude).count == 2 }
+
+        let state = NotchState(monitor: monitor)
         state.isExpanded = true
-        state.isPointerNearBottom = true
         state.toggleSettings()
         XCTAssertTrue(state.isSettingsOpen)
+        monitor.select(subscription: dev)
+        XCTAssertEqual(monitor.selectedSource(for: .claude), dev)
 
         state.isExpanded = false
         XCTAssertFalse(state.isSettingsOpen)
-        XCTAssertFalse(state.isPointerNearBottom)
         XCTAssertEqual(state.presentation, .idle)
+        XCTAssertEqual(monitor.selectedSource(for: .claude), .claude, "a look does not outlive the HUD")
     }
 
     func testReleaseVersionComparisonIgnoresTagPrefix() {

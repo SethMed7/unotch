@@ -154,9 +154,9 @@
     .hud:has(#settings:checked) .ring.on .arc { stroke: rgba(244,247,246,0.58); }
     .footer-rail { margin-top: auto; height: 42px; display: flex; align-items: center; justify-content: center; width: 100%; }
     .gear { width: 58px; height: 42px; display: grid; place-items: center; cursor: pointer; }
-    .gear span { width: 28px; height: 28px; border-radius: 50%; background: var(--un-divider); color: var(--un-ink-2); display: grid; place-items: center; opacity: 0; transition: opacity 200ms var(--un-ease-out), transform 200ms var(--un-ease-out), background 120ms; }
+    .gear span { width: 28px; height: 28px; border-radius: 50%; background: var(--un-divider); color: var(--un-ink-2); display: grid; place-items: center; transition: transform 200ms var(--un-ease-out), background 120ms; }
     .gear svg { width: 12px; height: 12px; }
-    .rail:hover .gear span, .hud:has(#settings:checked) .gear span, .hud:has(#settings:focus-visible) .gear span { opacity: 1; }
+    .gear:hover span { background: var(--un-hairline); color: var(--un-ink); }
     .hud:has(#settings:checked) .gear span { background: var(--un-hairline); color: var(--un-ink); transform: rotate(30deg); }
     .hud:has(#settings:focus-visible) .gear span { outline: 2px solid var(--un-mint); outline-offset: 2px; }
     #settings { position: absolute; opacity: 0; width: 1px; height: 1px; margin: -1px; overflow: hidden; }
@@ -193,7 +193,7 @@
     .hbtn.g { width: 58px; background: var(--un-divider); color: var(--un-ink-2); }
     .hint { position: absolute; left: 16px; bottom: 12px; z-index: 1; font: 600 13px/1.3 var(--un-font-body); color: var(--ink); }
     .hint kbd { font: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
-    @media (hover: none) { .gear span { opacity: 1; } .hint .hov { display: none; } }
+    @media (hover: none) { .hint .hov { display: none; } }
     @media (hover: hover) { .hint .tap { display: none; } }
 
     /* ---------- sections ---------- */
@@ -327,7 +327,7 @@
               <div class="head">
                 <img class="mark" src="brand/logo/mark.svg?v=2" width="20" height="20" alt="">
                 <div class="title">uNotch</div>
-                <span class="ver">1.4.0</span>
+                <span class="ver">1.5.0</span>
               </div>
               <div class="srow"><span class="lab">Side</span><span class="seg"><span class="on">Left</span><span>Right</span></span></div>
               <div class="srow"><span class="lab">Position</span><span class="grip"><svg viewBox="0 0 8 12" fill="currentColor"><circle cx="2" cy="2" r="1.25"/><circle cx="6" cy="2" r="1.25"/><circle cx="2" cy="6" r="1.25"/><circle cx="6" cy="6" r="1.25"/><circle cx="2" cy="10" r="1.25"/><circle cx="6" cy="10" r="1.25"/></svg>Drag to move</span></div>
@@ -336,21 +336,22 @@
             </div>
           </div>
         </div>
-        <p class="hint"><span class="hov">Hover the bottom of the rail, then click the <kbd>gear</kbd>.</span><span class="tap">Tap the <kbd>gear</kbd> at the bottom of the rail.</span></p>
+        <p class="hint"><span class="hov">Click the <kbd>gear</kbd> at the bottom of the rail.</span><span class="tap">Tap the <kbd>gear</kbd> at the bottom of the rail.</span></p>
       </div>
     </div>
 
     <section id="monitors" aria-labelledby="monitors-h">
       <div class="sec-head">
-        <h2 id="monitors-h">Three providers, one quiet readout.</h2>
-        <p>Every number comes from a command-line tool that is already signed in on your Mac. uNotch never asks for a key and never stores one. It shows only the providers you actually have installed — with one or two, the rail simply shrinks.</p>
+        <h2 id="monitors-h">Every provider, one quiet readout.</h2>
+        <p>Every number comes from a command-line tool that is already signed in on your Mac. uNotch never asks for a key and never stores one. It shows only the providers you actually have installed — the rail sizes to fit, and Grok Bot's ring joins Cursor's once your plan is known to include it.</p>
       </div>
       <table>
         <thead><tr><th scope="col">Provider</th><th scope="col">Local source</th><th scope="col">Usage shown</th></tr></thead>
         <tbody>
           <tr><td>Claude</td><td data-l="Source">Claude Code CLI <code>/usage</code></td><td data-l="Shows">5-hour, weekly, and Fable limits</td></tr>
           <tr><td>Codex</td><td data-l="Source">Codex app-server rate limits</td><td data-l="Shows">Plan windows, plus banked resets when any remain</td></tr>
-          <tr><td>Cursor</td><td data-l="Source">Cursor dashboard usage RPCs</td><td data-l="Shows">Cursor Models, Other Models, and Grok Bot</td></tr>
+          <tr><td>Cursor</td><td data-l="Source">Cursor dashboard usage RPCs</td><td data-l="Shows">Cursor Models and Other Models</td></tr>
+          <tr><td>Grok Bot</td><td data-l="Source">Cursor dashboard usage RPCs, through the Cursor sign-in</td><td data-l="Shows">Grok Bot's own allowance</td></tr>
         </tbody>
       </table>
     </section>
@@ -362,9 +363,9 @@
       </div>
       <ol class="steps">
         <li><div><h3>Hover the edge</h3><p>Rest the pointer on the cue for 150 ms. The rail and callout slide in with fresh numbers from the selected CLI.</p></div></li>
-        <li><div><h3>Switch providers</h3><p>Hover a logo on the rail to switch. Stale readings refresh on their own; the refresh control forces one.</p></div></li>
+        <li><div><h3>Switch providers</h3><p>Hover a logo on the rail to switch. Stale readings refresh on their own; the refresh control forces one. With more than one sign-in to a provider, hover a cell in the callout to look at it and click one to make it the favourite its ring reports.</p></div></li>
         <li><div><h3>Put it where you want</h3><p>Drag the rail up, down, or across the display. Release near either edge and uNotch docks there and remembers.</p></div></li>
-        <li><div><h3>Settings, when you reach for them</h3><p>Hover the bottom of the HUD to reveal a gear. It opens a small section with a side picker, a drag handle, Update &amp; Restart, and Quit. That is the whole settings surface.</p></div></li>
+        <li><div><h3>Settings, when you reach for them</h3><p>The gear at the bottom of the rail opens a small section with a side picker, a drag handle, Update &amp; Restart, and Quit. That is the whole settings surface.</p></div></li>
       </ol>
     </section>
 

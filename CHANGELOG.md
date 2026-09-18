@@ -6,6 +6,46 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-09-18
+
+### Added
+- **Favourite subscription.** Click a cell in the subscription strip to make it
+  the one its provider opens on and its ring reports; it is marked ★ and kept
+  across launches. Hovering another cell looks at it for as long as the HUD is
+  open; closing the HUD returns to the favourite. Click the favourite again to
+  clear it.
+- **Grok Bot has its own ring**, under Cursor's, with the Grok Bot app's icon.
+  Its allowance comes from the same Cursor dashboard read as before, but it no
+  longer shares Cursor's pop-out. The ring appears once a read shows the Cursor
+  plan includes Grok Bot, so a plan without it (or a pooled enterprise plan)
+  shows nothing extra. The rail is 318 pt with four rings.
+
+### Changed
+- The settings gear is always visible at the bottom of the rail instead of
+  appearing when the pointer nears it.
+- **The subscription switcher is its own row.** The pop-out's title stays
+  `Claude usage`; underneath it, every signed-in subscription gets an equal-width
+  cell — name over percent — in one segmented strip. Two cells read as well as
+  five. With five, the title, refresh button, and limits no longer overflow the
+  callout, and names are no longer cut to three letters (`cc-`, `per`, `ant`);
+  a name that is too long for its cell trails off, and hovering it shows the full
+  name. The callout is one row taller when a provider has more than one
+  subscription.
+- The callout shares the rail's top edge instead of centring on it. Providers
+  have different numbers of limits, so the centred callout carried its title and
+  refresh button up and down with every switch.
+
+### Fixed
+- Hovering a subscription cell switches to it. Hover inside the HUD only reported
+  while uNotch was the active app, and a menu bar app hovered from another app's
+  window never is, so the cells only answered clicks. Every hover in the HUD now
+  tracks the way the panel itself does, including the highlights on the gear and
+  the settings buttons.
+- The refresh arrow no longer bounces or keeps turning after moving quickly
+  through the providers. Hovering a ring starts a read when its usage is stale,
+  and the arrow used to spring back to rest on every change of state; the turning
+  arrow now reads its angle from the clock and crossfades with the still one.
+
 ## [1.4.0] — 2026-09-18
 
 ### Added
@@ -129,7 +169,8 @@ it has no extra subscriptions to find; its sign-in check is unchanged.
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/SethMed7/unotch/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/SethMed7/unotch/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/SethMed7/unotch/compare/v1.2.4...v1.3.0
 [1.2.4]: https://github.com/SethMed7/unotch/compare/v1.2.3...v1.2.4

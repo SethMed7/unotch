@@ -17,6 +17,8 @@ actor CLIUsageFetcher: UsageFetching {
                 return Self.fetchClaudeUsage(for: source)
             case .cursor:
                 return Self.fetchCursorUsage()
+            case .grokBot:
+                return Self.fetchGrokBotUsage()
             }
         }.value
     }
@@ -25,9 +27,12 @@ actor CLIUsageFetcher: UsageFetching {
         MonitorSource.defaults
             .filter { Self.executablePath(for: $0.provider) != nil }
             .flatMap { source in
-                [source] + Self.configDirectories(for: source.provider).map {
+                let extras = Self.configDirectories(for: source.provider).map {
                     MonitorSource(provider: source.provider, configDirectory: $0)
                 }
+                // Grok Bot is read through the Cursor sign-in, so it comes with Cursor.
+                let companions: [MonitorSource] = source.provider == .cursor ? [.grokBot] : []
+                return [source] + extras + companions
             }
     }
 
@@ -63,7 +68,7 @@ actor CLIUsageFetcher: UsageFetching {
                     && ["config.toml", "version.json", "installation_id"]
                         .contains { has($0, in: folder) }
             }
-        case .cursor:
+        case .cursor, .grokBot:
             // Cursor Agent keeps one sign-in per Mac user, whatever `CURSOR_CONFIG_DIR` says.
             return []
         }
@@ -105,7 +110,7 @@ actor CLIUsageFetcher: UsageFetching {
                 "/opt/homebrew/bin/claude",
                 "/usr/local/bin/claude"
             ])
-        case .cursor:
+        case .cursor, .grokBot:
             return executable(named: "agent", preferredPaths: [
                 "\(home)/.local/bin/agent",
                 "/opt/homebrew/bin/agent",
@@ -197,13 +202,7 @@ actor CLIUsageFetcher: UsageFetching {
                 method: "GetCurrentPeriodUsage",
                 token: token
                ),
-               let snapshot = try? UsageCLIParser.cursorDashboard(
-                period: period,
-                sand: try? ProcessRunner.cursorDashboard(
-                    method: "GetSandUsageStatus",
-                    token: token
-                )
-               ) {
+               let snapshot = try? UsageCLIParser.cursorDashboard(period: period) {
                 return snapshot
             }
 
@@ -215,6 +214,24 @@ actor CLIUsageFetcher: UsageFetching {
             return try UsageCLIParser.cursor(output)
         } catch {
             return .failed(source: .cursor, message: userFacingMessage(error))
+        }
+    }
+
+    /// Grok Bot's allowance is Cursor's `GetSandUsageStatus` (Grok Bot's bundle is
+    /// `com.anysphere.sand`). No token means no Cursor sign-in; a plan without Grok Bot
+    /// answers with no included allowance, and the ring stays off the rail.
+    private static func fetchGrokBotUsage() -> UsageSnapshot {
+        guard executablePath(for: .cursor) != nil else {
+            return .unavailable(source: .grokBot, message: "Cursor Agent CLI not found")
+        }
+        guard let token = cursorAccessToken() else {
+            return .unavailable(source: .grokBot, message: "Sign in with Cursor Agent CLI")
+        }
+        do {
+            let sand = try ProcessRunner.cursorDashboard(method: "GetSandUsageStatus", token: token)
+            return try UsageCLIParser.grokBot(sand)
+        } catch {
+            return .failed(source: .grokBot, message: userFacingMessage(error))
         }
     }
 
@@ -391,7 +408,7 @@ enum UsageCLIParser {
         )
     }
 
-    static func cursorDashboard(period: Data, sand: Data?, now: Date = Date()) throws -> UsageSnapshot {
+    static func cursorDashboard(period: Data, now: Date = Date()) throws -> UsageSnapshot {
         guard let root = jsonObject(period),
               let planUsage = root["planUsage"] as? [String: Any] else {
             throw CLIUsageError("Cursor dashboard returned no plan usage")
@@ -427,9 +444,6 @@ enum UsageCLIParser {
                 )
             )
         }
-        if let sand, let grok = grokBotLimit(from: sand) {
-            limits.append(grok)
-        }
         guard !limits.isEmpty else {
             throw CLIUsageError("Cursor dashboard returned no usage window")
         }
@@ -437,6 +451,34 @@ enum UsageCLIParser {
         return UsageSnapshot(
             source: .cursor,
             limits: limits,
+            updatedAt: now,
+            state: .loaded
+        )
+    }
+
+    /// Grok Bot's own allowance from `GetSandUsageStatus`. A plan with no included
+    /// allowance — pooled enterprise, or none at all — is a conclusive "not here", so
+    /// it comes back unavailable rather than failed and the ring stays hidden.
+    static func grokBot(_ data: Data, now: Date = Date()) throws -> UsageSnapshot {
+        guard let json = jsonObject(data) else {
+            throw CLIUsageError("Cursor dashboard returned no Grok Bot usage")
+        }
+        guard !flag(json["usesPooledEnterpriseAllowance"]),
+              !flag(json["includedLimitZero"]),
+              flag(json["hasNonZeroIncludedLimit"]),
+              let used = percentValue(json["usagePercent"]) else {
+            return .unavailable(source: .grokBot, message: "Not included in this Cursor plan")
+        }
+
+        return UsageSnapshot(
+            source: .grokBot,
+            limits: [
+                UsageLimit(
+                    label: "Grok Bot",
+                    remainingFraction: 1 - used / 100,
+                    resetAt: date(from: json["nextResetTimestampUtc"])
+                )
+            ],
             updatedAt: now,
             state: .loaded
         )
@@ -489,23 +531,6 @@ enum UsageCLIParser {
 
     private static func firstIntMatch(in text: String, pattern: String) -> Int? {
         firstMatch(in: text, pattern: pattern).flatMap(Int.init)
-    }
-
-    private static func grokBotLimit(from data: Data) -> UsageLimit? {
-        guard let json = jsonObject(data),
-              !flag(json["usesPooledEnterpriseAllowance"]),
-              !flag(json["includedLimitZero"]),
-              flag(json["hasNonZeroIncludedLimit"]),
-              let used = percentValue(json["usagePercent"]) else {
-            return nil
-        }
-
-        return UsageLimit(
-            label: "Grok Bot",
-            remainingFraction: 1 - used / 100,
-            resetAt: date(from: json["nextResetTimestampUtc"]),
-            contributesToSummary: false
-        )
     }
 
     private static func jsonObject(_ data: Data) -> [String: Any]? {

@@ -12,11 +12,14 @@ enum HUDMetrics {
     static let usageCalloutHeight: CGFloat = 132
     static let usageCalloutTallHeight: CGFloat = 172
     static let usageCalloutTripleHeight: CGFloat = 212
+    /// The subscription strip (34 pt of cells in a 2 pt well) plus the space above it.
+    static let subscriptionStripHeight: CGFloat = 38
+    static let subscriptionStripSpacing: CGFloat = 10
     static let settingsCalloutHeight: CGFloat = 188
     static let gap: CGFloat = 8
 
-    /// The rail only holds the providers that are installed, so it shrinks with them:
-    /// 252 pt for three, 186 for two, 120 for one.
+    /// The rail only holds the providers that are installed, so it sizes to them:
+    /// 318 pt for four (Grok Bot under Cursor), 252 for three, 186 for two, 120 for one.
     static func railHeight(providerCount: Int) -> CGFloat {
         let count = CGFloat(max(providerCount, 1))
         return railTopPadding
@@ -26,22 +29,33 @@ enum HUDMetrics {
             + railFooterHeight
     }
 
-    static func usageCalloutHeight(forLimitCount count: Int) -> CGFloat {
-        switch max(count, 1) {
+    /// A provider with more than one signed-in subscription gets the strip under the
+    /// title, so its callout is taller by the strip's row.
+    static func usageCalloutHeight(forLimitCount count: Int, subscriptionCount: Int = 1) -> CGFloat {
+        let base: CGFloat = switch max(count, 1) {
         case 1: usageCalloutHeight
         case 2: usageCalloutTallHeight
         default: usageCalloutTripleHeight
         }
+        let strip = subscriptionCount > 1 ? subscriptionStripHeight + subscriptionStripSpacing : 0
+        return base + strip
     }
 
-    /// The panel must hold the rail and the tallest callout, whichever is taller.
+    /// The tallest usage callout: three limits under a subscription strip.
+    static var usageCalloutMaxHeight: CGFloat {
+        usageCalloutHeight(forLimitCount: 3, subscriptionCount: 2)
+    }
+
+    /// The panel must hold the rail and the tallest callout, whichever is taller. It is
+    /// sized for the tallest usage callout up front so a subscription that signs in while
+    /// the HUD is open never runs past the panel's edge.
     static func expandedSize(providerCount: Int) -> CGSize {
         CGSize(
             width: railWidth + gap + calloutWidth,
             height: max(
                 railHeight(providerCount: providerCount),
                 settingsCalloutHeight,
-                usageCalloutTripleHeight
+                usageCalloutMaxHeight
             )
         )
     }
@@ -163,13 +177,10 @@ private struct ProviderRailView: View {
     }
 }
 
-/// The gear that surfaces when the pointer is near the bottom of the HUD.
+/// The gear in the rail's footer.
 private struct SettingsDockButton: View {
     @ObservedObject var state: NotchState
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovering = false
-
-    private var isRevealed: Bool { state.isPointerNearBottom || state.isSettingsOpen }
 
     var body: some View {
         Button {
@@ -187,14 +198,11 @@ private struct SettingsDockButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-        .opacity(isRevealed ? 1 : 0)
-        .allowsHitTesting(isRevealed)
-        .animation(reduceMotion ? Brand.fade : Brand.spring, value: isRevealed)
+        .onHoverAlways { isHovering = $0 }
         .animation(Brand.fade, value: state.isSettingsOpen)
+        .animation(Brand.fade, value: isHovering)
         .help(state.isSettingsOpen ? "Back to usage" : "Settings")
         .accessibilityLabel("Settings")
-        .accessibilityHidden(!isRevealed)
     }
 }
 
@@ -236,7 +244,7 @@ private struct SourceRingButton: View {
             in: RoundedRectangle(cornerRadius: Brand.Radius.control, style: .continuous)
         )
         .contentShape(Rectangle())
-        .onHover { hovering in
+        .onHoverAlways { hovering in
             if hovering { action() }
         }
         .help("Show \(provider.name) usage")
@@ -276,7 +284,10 @@ private struct ExpandedNotchView: View {
 
     private var calloutHeight: CGFloat {
         if state.isSettingsOpen { return HUDMetrics.settingsCalloutHeight }
-        return HUDMetrics.usageCalloutHeight(forLimitCount: monitor.snapshot.limits.count)
+        return HUDMetrics.usageCalloutHeight(
+            forLimitCount: monitor.snapshot.limits.count,
+            subscriptionCount: monitor.subscriptions(for: monitor.selectedProvider).count
+        )
     }
 
     private var rail: some View {
@@ -298,9 +309,11 @@ private struct ExpandedNotchView: View {
                     .transition(.opacity)
             }
         }
-        // Centre the callout on the rail so its pointer lands inside it; a callout taller
-        // than a short rail simply shares the rail's top edge.
-        .offset(y: max(0, (railHeight - calloutHeight) / 2))
+        // The callout shares the rail's top edge whatever its height. Providers have
+        // different numbers of limits, so a callout centred on the rail would carry its
+        // title and refresh button up and down with every switch; anchored, only the
+        // rows below them change. The pointer sits at the callout's middle, which is
+        // always inside the rail.
         .animation(reduceMotion ? Brand.fade : Brand.spring, value: state.isSettingsOpen)
     }
 }
@@ -337,6 +350,18 @@ private struct UsageFlyoutView: View {
         CalloutSurface(edge: state.edge) {
             VStack(alignment: .leading, spacing: 0) {
                 header
+                if subscriptions.count > 1 {
+                    SubscriptionStrip(
+                        subscriptions: subscriptions,
+                        selected: monitor.snapshot.source,
+                        remainingPercent: { monitor.snapshot(for: $0).remainingPercent },
+                        isFavorite: monitor.isFavorite,
+                        look: { monitor.select(subscription: $0) },
+                        favorite: monitor.toggleFavorite
+                    )
+                    .frame(height: HUDMetrics.subscriptionStripHeight)
+                    .padding(.top, HUDMetrics.subscriptionStripSpacing)
+                }
                 usageLimits
                     .padding(.top, 12)
             }
@@ -344,54 +369,35 @@ private struct UsageFlyoutView: View {
         .accessibilityLabel("\(monitor.snapshot.source.name) usage details")
     }
 
+    private var subscriptions: [MonitorSource] {
+        monitor.subscriptions(for: monitor.selectedProvider)
+    }
+
+    /// The title names the provider. Which subscription the limits belong to is the
+    /// strip's job, so the title never has to make room for it.
     private var header: some View {
         HStack(spacing: 9) {
             CompanyLogo(provider: monitor.selectedProvider)
                 .frame(width: 22, height: 22)
 
             VStack(alignment: .leading, spacing: 1) {
-                title
+                Text("\(monitor.selectedProvider.name) usage")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(Brand.ink)
+                    .lineLimit(1)
+                    .frame(height: 18)
                 Text(headerDetail)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(Brand.ink2)
                     .lineLimit(1)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             RefreshButton(
                 isRefreshing: monitor.snapshot.state == .refreshing,
                 action: monitor.refresh
             )
-        }
-    }
-
-    /// More than one signed-in subscription turns the title into a switcher, so the
-    /// callout keeps its height.
-    @ViewBuilder
-    private var title: some View {
-        let subscriptions = monitor.subscriptions(for: monitor.selectedProvider)
-        if subscriptions.count > 1 {
-            HStack(spacing: 4) {
-                ForEach(subscriptions) { source in
-                    SubscriptionPill(
-                        source: source,
-                        remainingPercent: monitor.snapshot(for: source).remainingPercent,
-                        isSelected: source == monitor.snapshot.source,
-                        // Two fit in full. Past that the others shrink to a few letters;
-                        // hovering one selects it, which opens it back up.
-                        isCompact: subscriptions.count > 2 && source != monitor.snapshot.source,
-                        compactLetters: subscriptions.count > 3 ? 3 : 4,
-                        action: { monitor.select(subscription: source) }
-                    )
-                }
-            }
-            .frame(height: 18)
-        } else {
-            Text("\(monitor.snapshot.source.name) usage")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(Brand.ink)
-                .frame(height: 18)
         }
     }
 
@@ -439,51 +445,88 @@ private struct UsageFlyoutView: View {
     }
 }
 
-/// One signed-in subscription in the pop-out's title. Hovering switches to it, the
-/// same way hovering a ring switches providers.
-private struct SubscriptionPill: View {
+/// The signed-in subscriptions of one provider as a segmented strip: every cell the
+/// same width, name over percent, so five read as cleanly as two. Hovering a cell
+/// looks at it, the same way hovering a ring looks at a provider; clicking one makes
+/// it the favourite the provider opens on.
+private struct SubscriptionStrip: View {
+    let subscriptions: [MonitorSource]
+    let selected: MonitorSource
+    let remainingPercent: (MonitorSource) -> Int?
+    let isFavorite: (MonitorSource) -> Bool
+    let look: (MonitorSource) -> Void
+    let favorite: (MonitorSource) -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(subscriptions) { source in
+                SubscriptionCell(
+                    source: source,
+                    remainingPercent: remainingPercent(source),
+                    isSelected: source == selected,
+                    isFavorite: isFavorite(source),
+                    look: { look(source) },
+                    favorite: { favorite(source) }
+                )
+            }
+        }
+        .padding(2)
+        .background(Brand.divider, in: RoundedRectangle(cornerRadius: Brand.Radius.control, style: .continuous))
+        .animation(Brand.fade, value: selected)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(selected.provider.name) subscriptions")
+    }
+}
+
+private struct SubscriptionCell: View {
     let source: MonitorSource
     let remainingPercent: Int?
     let isSelected: Bool
-    let isCompact: Bool
-    let compactLetters: Int
-    let action: () -> Void
+    let isFavorite: Bool
+    let look: () -> Void
+    let favorite: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                // Folder names run long. The name gives way before the number does.
-                Text(isCompact ? String(label.prefix(compactLetters)) : label)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(isSelected ? Brand.ink : Brand.ink2)
-                    .truncationMode(.tail)
-                    .fixedSize(horizontal: isCompact, vertical: false)
-                    .frame(minWidth: isCompact ? nil : 26, alignment: .leading)
-                if !isCompact {
-                    Text(percentText)
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(isSelected ? Brand.mint : Brand.ink3)
-                        .fixedSize()
-                        .layoutPriority(2)
+        Button(action: favorite) {
+            VStack(spacing: 1) {
+                HStack(spacing: 2) {
+                    if isFavorite {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 6.5, weight: .bold))
+                            .foregroundStyle(isSelected ? Brand.ink : Brand.ink2)
+                            .accessibilityHidden(true)
+                    }
+                    // Folder names run long and the cell is as wide as its share of the
+                    // strip, so the name clips before the number does. The tooltip and
+                    // the menu bar menu carry the full name.
+                    Text(label)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(isSelected ? Brand.ink : Brand.ink2)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
+                Text(percentText)
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(isSelected ? Brand.mint : Brand.ink2)
             }
-            .lineLimit(1)
-            .padding(.horizontal, 7)
-            .frame(height: 18)
+            .padding(.horizontal, 3)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
-                Brand.paper.opacity(isSelected ? 0.12 : 0.05),
-                in: Capsule()
+                isSelected ? Brand.hairline : Color.clear,
+                in: RoundedRectangle(cornerRadius: Brand.Radius.control - 2, style: .continuous)
             )
-            .contentShape(Capsule())
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .layoutPriority(isSelected || isCompact ? 1 : 0)
-        .onHover { hovering in
-            if hovering { action() }
+        .onHoverAlways { hovering in
+            if hovering { look() }
         }
-        .help("Show \(source.name) usage")
-        .accessibilityLabel("\(source.name), \(percentText) remaining")
+        .help(isFavorite
+            ? "\(source.name) opens first. Click to clear."
+            : "Hovering shows \(source.name). Click to make it open first.")
+        .accessibilityLabel("\(source.name), \(percentText) remaining\(isFavorite ? ", favourite" : "")")
+        .accessibilityHint(isFavorite ? "Clears the favourite" : "Makes this the favourite")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
@@ -541,23 +584,50 @@ private struct RefreshButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "arrow.clockwise")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Brand.ink2)
-                .frame(width: 26, height: 24)
-                .background(Brand.paper.opacity(0.07), in: Circle())
-                .contentShape(Circle())
-                .rotationEffect(.degrees(isRefreshing ? 360 : 0))
-                .animation(
-                    isRefreshing
-                        ? .linear(duration: 0.8).repeatForever(autoreverses: false)
-                        : .default,
-                    value: isRefreshing
-                )
+            // The still arrow and the turning one are separate views that crossfade.
+            // Hovering down the rail flips `isRefreshing` several times a second, and
+            // a single rotated arrow would spring back to zero on every flip.
+            ZStack {
+                if isRefreshing {
+                    TurningArrow()
+                        .transition(.opacity)
+                } else {
+                    RefreshGlyph()
+                        .transition(.opacity)
+                }
+            }
+            .frame(width: 26, height: 24)
+            .background(Brand.paper.opacity(0.07), in: Circle())
+            .contentShape(Circle())
+            .animation(Brand.fade, value: isRefreshing)
         }
         .buttonStyle(.plain)
         .help("Refresh usage")
-        .accessibilityLabel("Refresh usage")
+        .accessibilityLabel(isRefreshing ? "Refreshing usage" : "Refresh usage")
+    }
+}
+
+private struct RefreshGlyph: View {
+    var body: some View {
+        Image(systemName: "arrow.clockwise")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(Brand.ink2)
+    }
+}
+
+/// The arrow turning while a read is in flight. Its angle is read off the clock, so
+/// there is no animation to interrupt, unwind, or leave running when the read ends.
+private struct TurningArrow: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private static let period: TimeInterval = 0.8
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { context in
+            let elapsed = context.date.timeIntervalSinceReferenceDate
+            let turn = elapsed.truncatingRemainder(dividingBy: Self.period) / Self.period
+            RefreshGlyph()
+                .rotationEffect(.degrees(reduceMotion ? 0 : turn * 360))
+        }
     }
 }
 
@@ -689,7 +759,7 @@ private struct DragGrip: View {
             in: RoundedRectangle(cornerRadius: Brand.Radius.control, style: .continuous)
         )
         .contentShape(Rectangle())
-        .onHover { hovering in
+        .onHoverAlways { hovering in
             if hovering { NSCursor.openHand.push() } else { NSCursor.pop() }
         }
         .gesture(
@@ -748,7 +818,7 @@ private struct HUDButton: View {
         }
         .buttonStyle(.plain)
         .disabled(isBusy)
-        .onHover { isHovering = $0 }
+        .onHoverAlways { isHovering = $0 }
         .animation(Brand.fade, value: isHovering)
     }
 
@@ -798,12 +868,14 @@ private enum OfficialBrandAssets {
         contentsOfFile: "/Applications/ChatGPT.app/Contents/Resources/icon-codex-light.png"
     ) ?? appIcon(at: "/Applications/ChatGPT.app")
     private static let cursor = appIcon(at: "/Applications/Cursor.app")
+    private static let grokBot = appIcon(at: "/Applications/Grok Bot.app")
 
     static func image(for provider: Provider) -> NSImage? {
         switch provider {
         case .claude: claude
         case .codex: codex
         case .cursor: cursor
+        case .grokBot: grokBot
         }
     }
 
@@ -927,6 +999,53 @@ private struct CalloutBubbleShape: Shape {
 
         path.closeSubpath()
         return path
+    }
+}
+
+extension View {
+    /// Hover that works while another app is active. SwiftUI's `onHover` tracks only
+    /// while uNotch is the active app, and a menu bar app hovered from someone else's
+    /// window never is; this tracks with `.activeAlways`, the way the panel itself does.
+    func onHoverAlways(_ action: @escaping (Bool) -> Void) -> some View {
+        background(AlwaysHoverTracker(onChange: action))
+    }
+}
+
+private struct AlwaysHoverTracker: NSViewRepresentable {
+    let onChange: (Bool) -> Void
+
+    func makeNSView(context: Context) -> HoverTrackingView {
+        let view = HoverTrackingView()
+        view.onChange = onChange
+        return view
+    }
+
+    func updateNSView(_ nsView: HoverTrackingView, context: Context) {
+        nsView.onChange = onChange
+    }
+
+    final class HoverTrackingView: NSView {
+        var onChange: ((Bool) -> Void)?
+        private var trackingAreaReference: NSTrackingArea?
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            if let trackingAreaReference { removeTrackingArea(trackingAreaReference) }
+            let area = NSTrackingArea(
+                rect: .zero,
+                options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                owner: self,
+                userInfo: nil
+            )
+            addTrackingArea(area)
+            trackingAreaReference = area
+        }
+
+        override func mouseEntered(with event: NSEvent) { onChange?(true) }
+        override func mouseExited(with event: NSEvent) { onChange?(false) }
+
+        /// Clicks belong to the SwiftUI control this sits behind.
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }
 

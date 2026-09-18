@@ -29,28 +29,89 @@ final class RenderTests: XCTestCase {
     }
 
     func testSecondSubscriptionKeepsTheRailAndPanelSize() async throws {
-        let dev = MonitorSource(provider: .claude, configDirectory: "/Users/someone/.claude-dev")
-        let limits = ["5-hour limit", "Weekly limit", "Fable"].map {
-            UsageLimit(label: $0, remainingFraction: 0.4, resetDescription: "Resets Sep 23 at 11am")
-        }
-        let monitor = UsageMonitor(fetcher: StubFetcher(
-            installed: [.claude, dev, .codex, .cursor],
-            snapshots: [
-                .claude: StubFetcher.loaded(.claude, remaining: 0.86),
-                dev: UsageSnapshot(source: dev, limits: limits, updatedAt: Date(), state: .loaded)
-            ]
-        ))
-        monitor.refreshAll()
-        for _ in 0..<200 where monitor.subscriptions(for: .claude).count < 2 {
-            try await Task.sleep(nanoseconds: 5_000_000)
-        }
-        monitor.select(subscription: dev)
+        let monitor = try await monitorWithClaudeSubscriptions(["/Users/someone/.claude-dev"])
+        monitor.select(subscription: monitor.subscriptions(for: .claude)[1])
 
         let size = HUDMetrics.expandedSize(providerCount: 3)
         let image = try render(monitor: monitor, settingsOpen: false)
         XCTAssertEqual(image.width, Int(size.width) * 2)
         XCTAssertEqual(image.height, Int(size.height) * 2)
         try writeSnapshotIfRequested(image, variable: "UNOTCH_MULTI_SNAPSHOT")
+    }
+
+    /// Five subscriptions share one strip row; the callout is the same height it is
+    /// for two, and nothing runs past the panel.
+    func testFiveSubscriptionsShareOneStripRow() async throws {
+        // Favouriting writes to defaults; keep it out of the test host's own domain.
+        defer { TestDefaults.clear() }
+        let monitor = try await monitorWithClaudeSubscriptions([
+            "/Users/someone/.claude-dev", "/Users/someone/.cc-work",
+            "/Users/someone/claude_personal", "/Users/someone/.config/anthropic-team"
+        ], defaults: TestDefaults.fresh())
+        XCTAssertEqual(monitor.subscriptions(for: .claude).count, 5)
+        monitor.toggleFavorite(monitor.subscriptions(for: .claude)[1])
+        monitor.select(subscription: monitor.subscriptions(for: .claude)[2])
+
+        let size = HUDMetrics.expandedSize(providerCount: 3)
+        let image = try render(monitor: monitor, settingsOpen: false)
+        XCTAssertEqual(image.width, Int(size.width) * 2)
+        XCTAssertEqual(image.height, Int(size.height) * 2)
+        try writeSnapshotIfRequested(image, variable: "UNOTCH_FIVE_SNAPSHOT")
+    }
+
+    func testGrokBotRingMakesAFourRingRail() async throws {
+        let grok = UsageSnapshot(
+            source: .grokBot,
+            limits: [UsageLimit(label: "Grok Bot", remainingFraction: 0.92, resetAt: Date().addingTimeInterval(3600))],
+            updatedAt: Date(),
+            state: .loaded
+        )
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.claude, .codex, .cursor, .grokBot],
+            snapshots: [
+                .claude: StubFetcher.loaded(.claude, remaining: 0.66),
+                .codex: StubFetcher.loaded(.codex, remaining: 0.30),
+                .cursor: StubFetcher.loaded(.cursor, remaining: 0.95),
+                .grokBot: grok
+            ]
+        ))
+        monitor.refreshAll()
+        for _ in 0..<200 where monitor.providers.count < 4 {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTAssertEqual(monitor.providers, [.claude, .codex, .cursor, .grokBot])
+        monitor.select(.grokBot)
+
+        let size = HUDMetrics.expandedSize(providerCount: 4)
+        let image = try render(monitor: monitor, settingsOpen: false)
+        XCTAssertEqual(image.width, Int(size.width) * 2)
+        XCTAssertEqual(image.height, Int(size.height) * 2)
+        try writeSnapshotIfRequested(image, variable: "UNOTCH_FOUR_SNAPSHOT")
+    }
+
+    /// Claude with its default sign-in plus one extra per folder, every one signed in
+    /// with the three Claude limits, beside a plain Codex and Cursor.
+    private func monitorWithClaudeSubscriptions(
+        _ folders: [String],
+        defaults: UserDefaults = .standard
+    ) async throws -> UsageMonitor {
+        let extras = folders.map { MonitorSource(provider: .claude, configDirectory: $0) }
+        let limits = ["5-hour limit", "Weekly limit", "Fable"].map {
+            UsageLimit(label: $0, remainingFraction: 0.4, resetDescription: "Resets Sep 23 at 11am")
+        }
+        var snapshots: [MonitorSource: UsageSnapshot] = [.claude: StubFetcher.loaded(.claude, remaining: 0.86)]
+        for extra in extras {
+            snapshots[extra] = UsageSnapshot(source: extra, limits: limits, updatedAt: Date(), state: .loaded)
+        }
+        let monitor = UsageMonitor(
+            fetcher: StubFetcher(installed: [.claude] + extras + [.codex, .cursor], snapshots: snapshots),
+            defaults: defaults
+        )
+        monitor.refreshAll()
+        for _ in 0..<200 where monitor.subscriptions(for: .claude).count < extras.count + 1 {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        return monitor
     }
 
     private func render(installed: [MonitorSource], settingsOpen: Bool) throws -> CGImage {
@@ -63,7 +124,6 @@ final class RenderTests: XCTestCase {
         let state = NotchState(monitor: monitor)
         state.edge = .left
         state.isExpanded = true
-        state.isPointerNearBottom = true
         state.isSettingsOpen = settingsOpen
 
         let size = HUDMetrics.expandedSize(providerCount: monitor.providers.count)

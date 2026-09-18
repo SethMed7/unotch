@@ -16,8 +16,6 @@ final class SideNotchWindowManager: NSObject {
         static let exitSlop: CGFloat = 5
         static let railWidth: CGFloat = HUDMetrics.railWidth
         static let railFooterHeight: CGFloat = HUDMetrics.railFooterHeight
-        /// Pointer distance from the bottom of the expanded HUD that reveals the settings gear.
-        static let bottomHoverZone: CGFloat = 56
         static let placementDefaultsKey = "uNotch.anchorYFraction"
     }
 
@@ -230,7 +228,6 @@ final class SideNotchWindowManager: NSObject {
 
         if isInside {
             pointerEntered()
-            updateBottomHoverZone(at: point)
             updateHoveredProvider(at: point)
         } else if state.isPointerInside {
             hoveredProvider = nil
@@ -239,20 +236,6 @@ final class SideNotchWindowManager: NSObject {
     }
 
     private var hoveredProvider: Provider?
-
-    private func updateBottomHoverZone(at screenPoint: NSPoint) {
-        guard state.isExpanded else {
-            if state.isPointerNearBottom { state.isPointerNearBottom = false }
-            return
-        }
-        let local = panel.convertPoint(fromScreen: screenPoint)
-        let railBottom = panel.frame.height - railHeight
-        let nearBottom = local.y >= railBottom - Metrics.exitSlop
-            && local.y <= railBottom + Metrics.bottomHoverZone
-        if nearBottom != state.isPointerNearBottom {
-            state.isPointerNearBottom = nearBottom
-        }
-    }
 
     private func updateHoveredProvider(at screenPoint: NSPoint) {
         guard state.isExpanded else {
@@ -382,7 +365,7 @@ enum ProviderHoverGeometry {
         distanceFromTop: CGFloat,
         railHeight: CGFloat,
         footerHeight: CGFloat = 0,
-        providers: [Provider] = Provider.allCases
+        providers: [Provider]
     ) -> Provider? {
         let providerHeight = railHeight - footerHeight
         guard !providers.isEmpty, providerHeight > 0,
