@@ -17,6 +17,37 @@ enum HUDMetrics {
     static let subscriptionStripSpacing: CGFloat = 10
     static let settingsCalloutHeight: CGFloat = 188
     static let gap: CGFloat = 8
+    /// The ring sits 3 pt into its row, so its centre is 3 + 18 from the row's top.
+    static let ringCenterOffset: CGFloat = 21
+    /// Where the pointer leaves the callout when nothing forces it lower: level with the
+    /// title row, so the bubble reads as coming out of the ring beside its header.
+    static let calloutPointerRestY: CGFloat = 32
+    /// Half the pointer's height along the edge; the pointer keeps clear of the corners.
+    static let calloutPointerHalfHeight: CGFloat = 9
+
+    /// Centre of the ring at `index`, measured from the top of the rail.
+    static func ringCenterY(index: Int) -> CGFloat {
+        railTopPadding + CGFloat(index) * (ringRowHeight + ringRowSpacing) + ringCenterOffset
+    }
+
+    /// Centre of the settings gear, measured from the top of the rail.
+    static func gearCenterY(providerCount: Int) -> CGFloat {
+        railHeight(providerCount: providerCount) - railFooterHeight / 2
+    }
+
+    /// Places a callout so its pointer lands on `anchorY` (a ring or the gear). The
+    /// callout's top is the anchor less the pointer's rest position, held inside the
+    /// panel; the pointer then sits wherever that leaves the anchor, kept off the corners.
+    static func calloutPlacement(
+        anchorY: CGFloat,
+        calloutHeight: CGFloat,
+        panelHeight: CGFloat
+    ) -> (offset: CGFloat, pointerY: CGFloat) {
+        let offset = min(max(anchorY - calloutPointerRestY, 0), max(panelHeight - calloutHeight, 0))
+        let margin = Brand.Radius.callout + calloutPointerHalfHeight
+        let pointerY = min(max(anchorY - offset, margin), calloutHeight - margin)
+        return (offset, pointerY)
+    }
 
     /// The rail only holds the providers that are installed, so it sizes to them:
     /// 318 pt for four (Grok Bot under Cursor), 252 for three, 186 for two, 120 for one.
@@ -238,7 +269,10 @@ private struct SourceRingButton: View {
                 .monospacedDigit()
                 .foregroundStyle(Brand.ink2)
         }
-        .frame(width: 50, height: HUDMetrics.ringRowHeight)
+        // Pinned to the row's top so the ring's centre is a known distance down
+        // (`HUDMetrics.ringCenterOffset`), where the callout's pointer aims.
+        .padding(.top, HUDMetrics.ringCenterOffset - 18)
+        .frame(width: 50, height: HUDMetrics.ringRowHeight, alignment: .top)
         .background(
             Brand.paper.opacity(isSelected ? 0.055 : 0),
             in: RoundedRectangle(cornerRadius: Brand.Radius.control, style: .continuous)
@@ -296,24 +330,44 @@ private struct ExpandedNotchView: View {
             .animation(reduceMotion ? Brand.fade : Brand.spring, value: monitor.providers.count)
     }
 
+    /// What the callout comes out of: the selected ring, or the gear while settings is open.
+    private var anchorY: CGFloat {
+        if state.isSettingsOpen {
+            return HUDMetrics.gearCenterY(providerCount: monitor.providers.count)
+        }
+        let index = monitor.providers.firstIndex(of: monitor.selectedProvider) ?? 0
+        return HUDMetrics.ringCenterY(index: index)
+    }
+
+    private var placement: (offset: CGFloat, pointerY: CGFloat) {
+        HUDMetrics.calloutPlacement(
+            anchorY: anchorY,
+            calloutHeight: calloutHeight,
+            panelHeight: HUDMetrics.expandedSize(providerCount: monitor.providers.count).height
+        )
+    }
+
     @ViewBuilder
     private var flyout: some View {
+        let placement = placement
         Group {
             if state.isSettingsOpen {
-                SettingsFlyoutView(state: state)
+                SettingsFlyoutView(state: state, pointerY: placement.pointerY)
                     .frame(width: HUDMetrics.calloutWidth, height: HUDMetrics.settingsCalloutHeight)
                     .transition(.opacity)
             } else {
-                UsageFlyoutView(state: state, monitor: monitor)
+                UsageFlyoutView(state: state, monitor: monitor, pointerY: placement.pointerY)
                     .frame(width: HUDMetrics.calloutWidth, height: calloutHeight)
                     .transition(.opacity)
             }
         }
-        // The callout shares the rail's top edge whatever its height. Providers have
-        // different numbers of limits, so a callout centred on the rail would carry its
-        // title and refresh button up and down with every switch; anchored, only the
-        // rows below them change. The pointer sits at the callout's middle, which is
-        // always inside the rail.
+        // The callout hangs from the ring it belongs to: its title row is level with the
+        // ring and the pointer aims at the ring's centre, sliding down to the gear when
+        // settings opens. Switching providers moves it at once, like a tooltip following
+        // the pointer; only the settings toggle is animated. Within one provider the
+        // top edge stays put while the body grows or shrinks, so the subscription strip
+        // does not move under a pointer that is hovering it.
+        .offset(y: placement.offset)
         .animation(reduceMotion ? Brand.fade : Brand.spring, value: state.isSettingsOpen)
     }
 }
@@ -321,6 +375,8 @@ private struct ExpandedNotchView: View {
 /// Shared glass callout chrome for the usage and settings sections.
 private struct CalloutSurface<Content: View>: View {
     let edge: ScreenEdge
+    /// Where along the rail-facing edge the pointer sits, from the callout's top.
+    let pointerY: CGFloat
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -333,9 +389,9 @@ private struct CalloutSurface<Content: View>: View {
                 .padding(.trailing, edge == .right ? 24 : 16)
                 .padding(.vertical, 14)
         }
-        .clipShape(CalloutBubbleShape(pointerEdge: edge))
+        .clipShape(CalloutBubbleShape(pointerEdge: edge, pointerY: pointerY))
         .overlay {
-            CalloutBubbleShape(pointerEdge: edge)
+            CalloutBubbleShape(pointerEdge: edge, pointerY: pointerY)
                 .stroke(Brand.hairline, lineWidth: 1)
         }
         .shadow(color: Color.black.opacity(0.18), radius: 7, y: 3)
@@ -345,9 +401,10 @@ private struct CalloutSurface<Content: View>: View {
 private struct UsageFlyoutView: View {
     @ObservedObject var state: NotchState
     @ObservedObject var monitor: UsageMonitor
+    let pointerY: CGFloat
 
     var body: some View {
-        CalloutSurface(edge: state.edge) {
+        CalloutSurface(edge: state.edge, pointerY: pointerY) {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 if subscriptions.count > 1 {
@@ -636,14 +693,16 @@ private struct TurningArrow: View {
 private struct SettingsFlyoutView: View {
     @ObservedObject var state: NotchState
     @ObservedObject private var updater: AppUpdater
+    let pointerY: CGFloat
 
-    init(state: NotchState) {
+    init(state: NotchState, pointerY: CGFloat) {
         self.state = state
         self.updater = state.updater
+        self.pointerY = pointerY
     }
 
     var body: some View {
-        CalloutSurface(edge: state.edge) {
+        CalloutSurface(edge: state.edge, pointerY: pointerY) {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 SettingsRow(label: "Side") {
@@ -959,14 +1018,23 @@ struct EdgeRailShape: InsettableShape {
 
 private struct CalloutBubbleShape: Shape {
     let pointerEdge: ScreenEdge
+    /// The pointer's centre along the rail-facing edge, from the top. Kept off the
+    /// rounded corners whatever is passed in.
+    var pointerY: CGFloat
+
+    var animatableData: CGFloat {
+        get { pointerY }
+        set { pointerY = newValue }
+    }
 
     func path(in rect: CGRect) -> Path {
         let arrow: CGFloat = 10
         let radius = Brand.Radius.callout
+        let half = HUDMetrics.calloutPointerHalfHeight
         let body = pointerEdge == .left
             ? CGRect(x: rect.minX + arrow, y: rect.minY, width: rect.width - arrow, height: rect.height)
             : CGRect(x: rect.minX, y: rect.minY, width: rect.width - arrow, height: rect.height)
-        let middle = rect.midY
+        let middle = rect.minY + min(max(pointerY, radius + half), rect.height - radius - half)
         var path = Path()
 
         if pointerEdge == .left {
@@ -977,18 +1045,18 @@ private struct CalloutBubbleShape: Shape {
             path.addQuadCurve(to: CGPoint(x: body.maxX - radius, y: body.maxY), control: CGPoint(x: body.maxX, y: body.maxY))
             path.addLine(to: CGPoint(x: body.minX + radius, y: body.maxY))
             path.addQuadCurve(to: CGPoint(x: body.minX, y: body.maxY - radius), control: CGPoint(x: body.minX, y: body.maxY))
-            path.addLine(to: CGPoint(x: body.minX, y: middle + 9))
+            path.addLine(to: CGPoint(x: body.minX, y: middle + half))
             path.addLine(to: CGPoint(x: rect.minX, y: middle))
-            path.addLine(to: CGPoint(x: body.minX, y: middle - 9))
+            path.addLine(to: CGPoint(x: body.minX, y: middle - half))
             path.addLine(to: CGPoint(x: body.minX, y: body.minY + radius))
             path.addQuadCurve(to: CGPoint(x: body.minX + radius, y: body.minY), control: CGPoint(x: body.minX, y: body.minY))
         } else {
             path.move(to: CGPoint(x: body.minX + radius, y: body.minY))
             path.addLine(to: CGPoint(x: body.maxX - radius, y: body.minY))
             path.addQuadCurve(to: CGPoint(x: body.maxX, y: body.minY + radius), control: CGPoint(x: body.maxX, y: body.minY))
-            path.addLine(to: CGPoint(x: body.maxX, y: middle - 9))
+            path.addLine(to: CGPoint(x: body.maxX, y: middle - half))
             path.addLine(to: CGPoint(x: rect.maxX, y: middle))
-            path.addLine(to: CGPoint(x: body.maxX, y: middle + 9))
+            path.addLine(to: CGPoint(x: body.maxX, y: middle + half))
             path.addLine(to: CGPoint(x: body.maxX, y: body.maxY - radius))
             path.addQuadCurve(to: CGPoint(x: body.maxX - radius, y: body.maxY), control: CGPoint(x: body.maxX, y: body.maxY))
             path.addLine(to: CGPoint(x: body.minX + radius, y: body.maxY))

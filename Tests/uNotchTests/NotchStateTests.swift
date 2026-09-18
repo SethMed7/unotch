@@ -147,6 +147,37 @@ final class NotchStateTests: XCTestCase {
         XCTAssertNil(ProviderHoverGeometry.provider(distanceFromTop: rail - 5, railHeight: rail, footerHeight: footer, providers: providers))
     }
 
+    func testCalloutPointerAimsAtTheSelectedRing() {
+        XCTAssertEqual(HUDMetrics.ringCenterY(index: 0), 32)
+        XCTAssertEqual(HUDMetrics.ringCenterY(index: 1), 98)
+        XCTAssertEqual(HUDMetrics.ringCenterY(index: 2), 164)
+        XCTAssertEqual(HUDMetrics.ringCenterY(index: 3), 230)
+        XCTAssertEqual(HUDMetrics.gearCenterY(providerCount: 4), 297)
+        XCTAssertEqual(HUDMetrics.gearCenterY(providerCount: 3), 231)
+
+        let panel4 = HUDMetrics.expandedSize(providerCount: 4).height
+        // The top ring: callout at the top, pointer level with the title row.
+        var placed = HUDMetrics.calloutPlacement(anchorY: 32, calloutHeight: 260, panelHeight: panel4)
+        XCTAssertEqual(placed.offset, 0)
+        XCTAssertEqual(placed.pointerY, 32)
+        // A lower ring: the callout drops so its title row is level with the ring.
+        placed = HUDMetrics.calloutPlacement(anchorY: 164, calloutHeight: 212, panelHeight: panel4)
+        XCTAssertEqual(placed.offset, 106, "318 - 212 holds it inside the panel")
+        XCTAssertEqual(placed.offset + placed.pointerY, 164, "the pointer still lands on the ring")
+        // The bottom ring with a short callout: held inside the panel, pointer follows the ring.
+        placed = HUDMetrics.calloutPlacement(anchorY: 230, calloutHeight: 132, panelHeight: panel4)
+        XCTAssertEqual(placed.offset, 186)
+        XCTAssertEqual(placed.offset + placed.pointerY, 230)
+        // The gear: the pointer stops short of the corner rather than leaving the edge.
+        placed = HUDMetrics.calloutPlacement(anchorY: 297, calloutHeight: 188, panelHeight: panel4)
+        XCTAssertEqual(placed.offset, 130)
+        XCTAssertEqual(placed.pointerY, 188 - Brand.Radius.callout - HUDMetrics.calloutPointerHalfHeight)
+        // A one-ring rail: the callout is taller than the rail and simply stays at the top.
+        placed = HUDMetrics.calloutPlacement(anchorY: 32, calloutHeight: 132, panelHeight: HUDMetrics.expandedSize(providerCount: 1).height)
+        XCTAssertEqual(placed.offset, 0)
+        XCTAssertEqual(placed.pointerY, 32)
+    }
+
     func testFourRingsFitWhenGrokBotJoins() {
         XCTAssertEqual(HUDMetrics.railHeight(providerCount: 4), 318)
         XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 4).height, 318)

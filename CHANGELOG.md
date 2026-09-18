@@ -6,6 +6,14 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-09-18
+
+### Fixed
+- The callout's pointer comes out of the ring you are on. The callout hangs from
+  the selected ring with its title row level with it, drops down the rail for the
+  lower rings, and slides to the gear when settings opens. It used to point at
+  its own middle, which landed wherever the callout's height put it.
+
 ## [1.5.0] — 2026-09-18
 
 ### Added
@@ -169,7 +177,8 @@ it has no extra subscriptions to find; its sign-in check is unchanged.
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/SethMed7/unotch/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/SethMed7/unotch/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/SethMed7/unotch/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/SethMed7/unotch/compare/v1.2.4...v1.3.0
