@@ -46,7 +46,9 @@ final class NotchStateTests: XCTestCase {
     func testCodexParserHidesBankedResetsWhenNoneRemain() throws {
         let data = Data(#"{"id":2,"result":{"rateLimits":{"primary":{"usedPercent":10,"windowDurationMins":10080,"resetsAt":1800000000},"secondary":null},"rateLimitResetCredits":{"availableCount":0}}}"#.utf8)
         let snapshot = try UsageCLIParser.codex(data)
-        XCTAssertEqual(snapshot.limits.map(\.label), ["Weekly limit"])
+        XCTAssertEqual(snapshot.limits.map(\.label), ["Weekly limit", "Resets available"])
+        XCTAssertEqual(snapshot.limits[1].valueText, "0 resets")
+        XCTAssertFalse(snapshot.limits[1].showsMeter)
     }
 
     func testClaudeUsageParserReadsAllModelsWeeklyLimit() throws {
@@ -57,10 +59,10 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(snapshot.limits[0].remainingFraction, 0.66, accuracy: 0.000_001)
         XCTAssertEqual(snapshot.limits[1].remainingFraction, 0.64, accuracy: 0.000_001)
         XCTAssertEqual(snapshot.limits[1].resetDescription, "Resets Sep 9 at 11am (UTC)")
-        XCTAssertFalse(snapshot.limits[1].contributesToSummary)
+        XCTAssertTrue(snapshot.limits[1].contributesToSummary)
         XCTAssertEqual(snapshot.limits[2].remainingFraction, 0.31, accuracy: 0.000_001)
         XCTAssertFalse(snapshot.limits[2].contributesToSummary)
-        XCTAssertEqual(snapshot.remainingPercent, 66)
+        XCTAssertEqual(snapshot.remainingPercent, 64, "the ring follows weekly when it is lower than the 5-hour window")
     }
 
     func testClaudeRailFollowsFiveHourWindowWhenFableIsEmpty() throws {
@@ -68,7 +70,7 @@ final class NotchStateTests: XCTestCase {
         let encoded = try JSONSerialization.data(withJSONObject: ["result": result])
         let snapshot = try UsageCLIParser.claude(encoded)
         XCTAssertEqual(snapshot.limits[2].remainingPercent, 0)
-        XCTAssertEqual(snapshot.remainingPercent, 98)
+        XCTAssertEqual(snapshot.remainingPercent, 44, "an empty Fable week does not drive the ring; the weekly limit does")
     }
 
     func testCursorUsageParserReadsIncludedMonthlyUsage() throws {
@@ -109,6 +111,107 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(snapshot.limits[1].remainingFraction, 0.22, accuracy: 0.000_001)
         XCTAssertFalse(snapshot.limits[1].contributesToSummary)
         XCTAssertEqual(snapshot.remainingPercent, 95)
+        XCTAssertEqual(snapshot.source, .cursor)
+    }
+
+    func testCursorDashboardKeepsTheSubscriptionItWasReadFor() throws {
+        let agent2 = MonitorSource(provider: .cursor, configDirectory: "/Users/someone/.cursor-agent2")
+        let period = Data(#"{"billingCycleEnd":"1789819317000","planUsage":{"autoPercentUsed":1.0,"apiPercentUsed":0}}"#.utf8)
+        XCTAssertEqual(try UsageCLIParser.cursorDashboard(period: period, source: agent2).source, agent2)
+        XCTAssertEqual(agent2.accountLabel, "agent2")
+        XCTAssertEqual(
+            CLIUsageFetcher.cursorKeychainName(forConfigDirectory: agent2.configDirectory ?? "")?.service,
+            "cursor-agent2-access-token"
+        )
+        XCTAssertNil(CLIUsageFetcher.cursorKeychainName(forConfigDirectory: "/Users/someone/.cursor"))
+    }
+
+    func testCursorFileStoreIsASecondSubscriptionOnlyWhenItIsSomeoneElse() {
+        func token(for subject: String) -> String {
+            func part(_ json: String) -> String {
+                Data(json.utf8).base64EncodedString()
+                    .replacingOccurrences(of: "+", with: "-")
+                    .replacingOccurrences(of: "/", with: "_")
+                    .replacingOccurrences(of: "=", with: "")
+            }
+            return "\(part(#"{"alg":"none"}"#)).\(part(#"{"sub":"\#(subject)"}"#)).sig"
+        }
+
+        let first = token(for: "auth0|first")
+        let second = token(for: "auth0|second")
+        XCTAssertEqual(CLIUsageFetcher.cursorTokenSubject(second), "auth0|second")
+
+        XCTAssertEqual(
+            CLIUsageFetcher.cursorSessionToken(
+                keychainToken: first,
+                directoryToken: nil,
+                defaultFileToken: second,
+                authId: "auth0|second"
+            ),
+            second,
+            "the file store is the second login when its subject is that folder's auth id"
+        )
+        XCTAssertNil(
+            CLIUsageFetcher.cursorSessionToken(
+                keychainToken: first,
+                directoryToken: nil,
+                defaultFileToken: second,
+                authId: "auth0|someone-else"
+            ),
+            "a file-store token is not claimed by a folder signed in as a different person"
+        )
+        XCTAssertNil(
+            CLIUsageFetcher.cursorSessionToken(
+                keychainToken: first,
+                directoryToken: nil,
+                defaultFileToken: first,
+                authId: "auth0|first"
+            ),
+            "the keychain login is not also a second subscription"
+        )
+        XCTAssertEqual(
+            CLIUsageFetcher.cursorSessionToken(
+                keychainToken: first,
+                directoryToken: second,
+                defaultFileToken: first,
+                authId: "auth0|second"
+            ),
+            second,
+            "a token kept inside the folder wins over the shared file store"
+        )
+        XCTAssertNil(
+            CLIUsageFetcher.cursorSessionToken(
+                keychainToken: first,
+                directoryToken: first,
+                defaultFileToken: second,
+                authId: "auth0|second"
+            ),
+            "a folder that stored the keychain login is not offered the other file-store token"
+        )
+    }
+
+    func testExtraCursorSignInsAreConfigDirsOtherThanTheDefault() throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("unotch-home-\(UUID().uuidString)", isDirectory: true)
+            .resolvingSymlinksInPath()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let files = [
+            ".cursor/cli-config.json",
+            ".cursor-agent2/cli-config.json",
+            ".config/cursor-work/cli-config.json",
+            "notes/cli-config.json",
+            "Documents/cursor/cli-config.json"
+        ]
+        for file in files {
+            let url = home.appendingPathComponent(file)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("{}".utf8).write(to: url)
+        }
+
+        XCTAssertEqual(
+            CLIUsageFetcher.configDirectories(for: .cursor, home: home),
+            [".cursor-agent2", "notes", ".config/cursor-work"].map { home.appendingPathComponent($0).path }
+        )
     }
 
     func testGrokBotParserReadsItsOwnAllowance() throws {
@@ -205,17 +308,18 @@ final class NotchStateTests: XCTestCase {
     func testHoveredRingTurnsRedUnderTenPercent() {
         XCTAssertFalse(HUDMetrics.isLowRemaining(nil))
         XCTAssertFalse(HUDMetrics.isLowRemaining(1))
-        XCTAssertFalse(HUDMetrics.isLowRemaining(0.10), "10% itself stays mint")
-        XCTAssertFalse(HUDMetrics.isLowRemaining(0.095), "9.5% rounds to 10% on the ring")
+        XCTAssertTrue(HUDMetrics.isLowRemaining(0.10), "10% itself is low")
+        XCTAssertTrue(HUDMetrics.isLowRemaining(0.095), "9.5% rounds to 10% on the ring")
         XCTAssertTrue(HUDMetrics.isLowRemaining(0.094))
+        XCTAssertFalse(HUDMetrics.isLowRemaining(0.105), "10.5% rounds to 11%")
         XCTAssertTrue(HUDMetrics.isLowRemaining(0))
-        XCTAssertEqual(HUDMetrics.ringAccent(remaining: 0.08, selected: false), Brand.paper.opacity(0.58), "unhovered rings stay quiet")
+        XCTAssertEqual(HUDMetrics.ringAccent(remaining: 0.08, selected: false), Brand.alert, "a low ring is red even before it is hovered")
         XCTAssertEqual(HUDMetrics.ringAccent(remaining: 0.08, selected: true), Brand.alert)
         XCTAssertEqual(HUDMetrics.ringAccent(remaining: 0.40, selected: true), Brand.mint)
-        XCTAssertEqual(HUDMetrics.ringFill(remaining: 0, selected: true), 1, "0% still draws a full red ring")
-        XCTAssertEqual(HUDMetrics.ringFill(remaining: 0.08, selected: true), 1)
-        XCTAssertEqual(HUDMetrics.ringFill(remaining: 0, selected: false), 0, "unhovered 0% stays an empty pale ring")
-        XCTAssertEqual(HUDMetrics.ringFill(remaining: 0.40, selected: true), 0.40)
+        XCTAssertEqual(HUDMetrics.ringAccent(remaining: 0.40, selected: false), Brand.paper.opacity(0.58))
+        XCTAssertEqual(HUDMetrics.ringFill(remaining: 0), 1, "0% still draws a full red ring")
+        XCTAssertEqual(HUDMetrics.ringFill(remaining: 0.08), 1)
+        XCTAssertEqual(HUDMetrics.ringFill(remaining: 0.40), 0.40)
     }
 
     func testOpenSettingsIsIdempotent() {
@@ -316,6 +420,73 @@ final class NotchStateTests: XCTestCase {
         monitor.refreshAll()
         await settle { monitor.snapshot(for: .grokBot).statusMessage != nil }
         XCTAssertEqual(monitor.providers, [.cursor])
+    }
+
+    func testEachCursorSignInBringsItsOwnGrokBot() async {
+        let work = MonitorSource(provider: .cursor, configDirectory: "/Users/someone/.cursor-work")
+        let grokWork = MonitorSource(provider: .grokBot, configDirectory: work.configDirectory)
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.cursor, work, .grokBot, grokWork],
+            snapshots: [
+                .cursor: StubFetcher.loaded(.cursor, remaining: 0.99),
+                work: StubFetcher.loaded(work, remaining: 1),
+                .grokBot: StubFetcher.loaded(.grokBot, remaining: 0.87),
+                grokWork: StubFetcher.loaded(grokWork, remaining: 1)
+            ]
+        ))
+        monitor.refreshAll()
+        await settle { monitor.subscriptions(for: .grokBot).count == 2 }
+        XCTAssertEqual(monitor.providers, [.cursor, .grokBot], "still one Grok Bot ring")
+        XCTAssertEqual(monitor.subscriptions(for: .grokBot), [.grokBot, grokWork])
+        XCTAssertEqual(grokWork.accountLabel, "work")
+        XCTAssertEqual(try XCTUnwrap(monitor.remainingFraction(for: .grokBot)), 0.87, accuracy: 0.000_001)
+
+        monitor.select(subscription: grokWork)
+        XCTAssertEqual(try XCTUnwrap(monitor.remainingFraction(for: .grokBot)), 1, accuracy: 0.000_001)
+    }
+
+    func testLowUsageTurnsTheCueRedUntilTheHUDIsOpened() async {
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.codex],
+            snapshots: [.codex: StubFetcher.loaded(.codex, remaining: 0.08)]
+        ))
+        XCTAssertFalse(monitor.hasUnseenLowUsage)
+        monitor.refreshAll()
+        await settle { monitor.hasUnseenLowUsage }
+        XCTAssertTrue(monitor.hasUnseenLowUsage)
+
+        monitor.isLooking = true
+        XCTAssertFalse(monitor.hasUnseenLowUsage, "opening the HUD is checking it")
+        monitor.isLooking = false
+        XCTAssertFalse(monitor.hasUnseenLowUsage, "it stays quiet after it has been seen")
+    }
+
+    func testSeenLowUsageDoesNotAlertAgainUntilItRecovers() async {
+        let script = ScriptedFetcher(snapshot: StubFetcher.loaded(.codex, remaining: 0.08))
+        let monitor = UsageMonitor(fetcher: script)
+        monitor.refreshAll()
+        await settle { monitor.hasUnseenLowUsage }
+        monitor.isLooking = true
+        monitor.isLooking = false
+        XCTAssertFalse(monitor.hasUnseenLowUsage)
+
+        script.snapshot = .failed(source: .codex, message: "CLI usage read failed")
+        monitor.refreshAll()
+        await settle { monitor.snapshot(for: .codex).state == .failed("CLI usage read failed") }
+        XCTAssertFalse(monitor.hasUnseenLowUsage, "a failed reread does not turn the cue red again")
+
+        script.snapshot = StubFetcher.loaded(.codex, remaining: 0.08)
+        monitor.refreshAll()
+        await settle { monitor.snapshot(for: .codex).state == .loaded }
+        XCTAssertFalse(monitor.hasUnseenLowUsage, "still low, already seen")
+
+        script.snapshot = StubFetcher.loaded(.codex, remaining: 0.40)
+        monitor.refreshAll()
+        await settle { monitor.snapshot(for: .codex).remainingFraction == 0.40 }
+        script.snapshot = StubFetcher.loaded(.codex, remaining: 0.05)
+        monitor.refreshAll()
+        await settle { monitor.hasUnseenLowUsage }
+        XCTAssertTrue(monitor.hasUnseenLowUsage, "dropping under 10% again is a new alert")
     }
 
     func testFavoriteIsWhatTheProviderOpensOn() async throws {
@@ -423,7 +594,7 @@ final class NotchStateTests: XCTestCase {
             CLIUsageFetcher.configDirectories(for: .codex, home: home),
             [".codex-work", "openai_team", ".config/cx"].map { home.appendingPathComponent($0).path }
         )
-        XCTAssertEqual(CLIUsageFetcher.configDirectories(for: .cursor, home: home), [], "Cursor has one sign-in per Mac user")
+        XCTAssertEqual(CLIUsageFetcher.configDirectories(for: .cursor, home: home), [])
         XCTAssertEqual(MonitorSource(provider: .codex, configDirectory: home.appendingPathComponent(".codex-work").path).name, "Codex (work)")
     }
 

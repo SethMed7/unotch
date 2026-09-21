@@ -59,8 +59,12 @@ what uNotch runs.
 
 The Cursor usage reader first tries Cursor's dashboard usage RPCs on
 `api2.cursor.sh` with the `cursor-access-token` already stored in the login
-keychain by Cursor Agent. The token is used as a bearer for that request and
-is not written anywhere. If the keychain item cannot be read, it falls back
+keychain by Cursor Agent. A second sign-in is a `CURSOR_CONFIG_DIR` folder.
+Its token is read from that folder's `auth.json`, from the keychain item
+named after the folder, or from `~/.cursor/auth.json` when that file is the
+folder's account. The token is used as a bearer for that
+request and is not written anywhere. If the default keychain item cannot be
+read, it falls back
 to opening Cursor Agent in a new, private temporary workspace with `--trust`,
 sending only `/usage`, reading the usage screen, exiting, and removing the
 workspace. Paths are passed as environment values rather than interpolated

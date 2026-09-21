@@ -25,10 +25,15 @@ output:
   HUD.
 - Cursor: authentication state, then Cursor Models and Other Models usage. The
   preferred source is Cursor's dashboard usage RPC (`GetCurrentPeriodUsage` on
-  `api2.cursor.sh`), authenticated with the existing `cursor-access-token`
-  keychain item created by Cursor Agent. The token is read into memory for that
-  request and is not stored. If the token cannot be read, uNotch falls back to
-  scraping Agent CLI `/usage`.
+  `api2.cursor.sh`). The default sign-in is authenticated with the existing
+  `cursor-access-token` keychain item created by Cursor Agent. A second sign-in
+  is the folder `CURSOR_CONFIG_DIR` pointed at. Its token is read from that
+  folder's `auth.json`, from the keychain item named after the folder, or from
+  `~/.cursor/auth.json` when that token is the account named in the folder.
+  The token is read into
+  memory for that request and is not stored. Account ids are used only to tell
+  two sign-ins apart and are not shown. If the default token cannot be read,
+  uNotch falls back to scraping Agent CLI `/usage`.
 - Grok Bot: its allowance, through the same Cursor sign-in
   (`GetSandUsageStatus` on `api2.cursor.sh`, with the same token handling). A
   plan without Grok Bot reports no allowance, and nothing is shown.

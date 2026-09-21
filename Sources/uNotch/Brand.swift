@@ -6,7 +6,7 @@ enum Brand {
     static let charcoal = Color(red: 0.082, green: 0.098, blue: 0.106) // #15191B
     static let paper = Color(red: 0.957, green: 0.969, blue: 0.965) // #F4F7F6
     static let mint = Color(red: 0.231, green: 0.886, blue: 0.608) // #3BE29B
-    /// Depleted remaining on a hovered ring: under 10%. Status, not decoration.
+    /// Depleted remaining: at or below 10%. Status, not decoration.
     static let alert = Color(red: 1.0, green: 0.361, blue: 0.416) // #FF5C6A
 
     /// Ink is paper at opacity so the desktop behind the glass tints the type.

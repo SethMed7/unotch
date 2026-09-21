@@ -24,24 +24,25 @@ enum HUDMetrics {
     static let calloutPointerRestY: CGFloat = 32
     /// Half the pointer's height along the edge; the pointer keeps clear of the corners.
     static let calloutPointerHalfHeight: CGFloat = 9
-    /// A hovered ring turns red below this remaining fraction. 10% itself stays mint.
+    /// A ring, a limit, and the idle cue turn red at or below this remaining fraction.
     static let lowRemainingCutoff = 0.10
 
     static func isLowRemaining(_ remaining: Double?) -> Bool {
         guard let remaining else { return false }
-        return Int((remaining * 100).rounded()) < Int((lowRemainingCutoff * 100).rounded())
+        return Int((remaining * 100).rounded()) <= Int((lowRemainingCutoff * 100).rounded())
     }
 
-    /// The selected ring's stroke and percent: mint, or red when remaining is under 10%.
+    /// Mint on the ring being looked at, red at or below 10% whether or not it is,
+    /// pale otherwise.
     static func ringAccent(remaining: Double?, selected: Bool) -> Color {
-        guard selected else { return Brand.paper.opacity(0.58) }
-        return isLowRemaining(remaining) ? Brand.alert : Brand.mint
+        if isLowRemaining(remaining) { return Brand.alert }
+        return selected ? Brand.mint : Brand.paper.opacity(0.58)
     }
 
-    /// A depleted hovered ring is a full circle. Trimming to remaining would hide
+    /// A ring at or below 10% is a full circle. Trimming to remaining would hide
     /// the colour at 0% — the case that needs the warning most.
-    static func ringFill(remaining: Double?, selected: Bool) -> CGFloat {
-        if selected && isLowRemaining(remaining) { return 1 }
+    static func ringFill(remaining: Double?) -> CGFloat {
+        if isLowRemaining(remaining) { return 1 }
         return remaining ?? 0
     }
 
@@ -126,7 +127,7 @@ struct NotchRootView: View {
         Group {
             switch state.presentation {
             case .idle:
-                MinimalEdgeTab(state: state, edge: state.edge)
+                MinimalEdgeTab(state: state, monitor: monitor, edge: state.edge)
                     .frame(width: HUDMetrics.idleTab.width, height: HUDMetrics.idleTab.height)
                     .transition(.opacity)
             case .expanded:
@@ -146,24 +147,28 @@ struct NotchRootView: View {
 
 private struct MinimalEdgeTab: View {
     @ObservedObject var state: NotchState
+    @ObservedObject var monitor: UsageMonitor
     let edge: ScreenEdge
 
     var body: some View {
         ZStack {
             GlassEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-            Brand.idleWash
-
-            VStack(spacing: 4) {
-                // The status point from the mark: the one mint element on the idle cue.
-                Circle()
-                    .fill(Brand.mint)
-                    .frame(width: 2.5, height: 2.5)
-                Capsule()
-                    .fill(Brand.paper.opacity(0.22))
-                    .frame(width: 1, height: 15)
-                    .blur(radius: 0.25)
+            if monitor.hasUnseenLowUsage {
+                // The whole cue, once, until the HUD is opened.
+                Brand.alert
+            } else {
+                Brand.idleWash
+                VStack(spacing: 4) {
+                    Circle()
+                        .fill(Brand.mint)
+                        .frame(width: 2.5, height: 2.5)
+                    Capsule()
+                        .fill(Brand.paper.opacity(0.22))
+                        .frame(width: 1, height: 15)
+                        .blur(radius: 0.25)
+                }
+                .offset(x: edge == .left ? 2.2 : -2.2)
             }
-            .offset(x: edge == .left ? 2.2 : -2.2)
         }
         .clipShape(EdgePressureShape(edge: edge))
         .contentShape(Rectangle())
@@ -270,7 +275,7 @@ private struct SourceRingButton: View {
                 Circle()
                     .stroke(Brand.paper.opacity(0.10), lineWidth: 4)
                 Circle()
-                    .trim(from: 0, to: HUDMetrics.ringFill(remaining: remaining, selected: isSelected))
+                    .trim(from: 0, to: HUDMetrics.ringFill(remaining: remaining))
                     .stroke(
                         HUDMetrics.ringAccent(remaining: remaining, selected: isSelected),
                         style: StrokeStyle(lineWidth: 4, lineCap: .round)
@@ -285,12 +290,11 @@ private struct SourceRingButton: View {
             }
             .frame(width: 36, height: 36)
 
-            // The selected ring and its number share one colour: mint, or red under 10%.
-            // No card behind the row.
+            // The number matches the ring: mint while looked at, red at or below 10%.
             Text(percentText)
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(isSelected ? HUDMetrics.ringAccent(remaining: remaining, selected: true) : Brand.ink2)
+                .foregroundStyle(HUDMetrics.ringAccent(remaining: remaining, selected: isSelected))
         }
         // Pinned to the row's top so the ring's centre is a known distance down
         // (`HUDMetrics.ringCenterOffset`), where the callout's pointer aims.
@@ -585,7 +589,7 @@ private struct SubscriptionCell: View {
                 Text(percentText)
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(isSelected ? Brand.mint : Brand.ink2)
+                    .foregroundStyle(isLow ? Brand.alert : (isSelected ? Brand.mint : Brand.ink2))
             }
             .padding(.horizontal, 3)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -614,10 +618,18 @@ private struct SubscriptionCell: View {
     private var percentText: String {
         remainingPercent.map { "\($0)%" } ?? "—"
     }
+
+    private var isLow: Bool {
+        remainingPercent.map { $0 <= Int((HUDMetrics.lowRemainingCutoff * 100).rounded()) } ?? false
+    }
 }
 
 private struct UsageLimitRow: View {
     let limit: UsageLimit
+
+    private var isLow: Bool {
+        limit.showsMeter && HUDMetrics.isLowRemaining(limit.remainingFraction)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -629,7 +641,7 @@ private struct UsageLimitRow: View {
                 Text(limit.valueText ?? "\(limit.remainingPercent)% remaining")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(Brand.ink)
+                    .foregroundStyle(isLow ? Brand.alert : Brand.ink)
             }
 
             if limit.showsMeter {
@@ -637,7 +649,7 @@ private struct UsageLimitRow: View {
                     ZStack(alignment: .leading) {
                         Capsule().fill(Brand.paper.opacity(0.12))
                         Capsule()
-                            .fill(Brand.mint)
+                            .fill(isLow ? Brand.alert : Brand.mint)
                             .frame(width: max(5, proxy.size.width * limit.remainingFraction))
                             .animation(Brand.fill, value: limit.remainingFraction)
                     }

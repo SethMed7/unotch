@@ -43,19 +43,23 @@ Cursor plan includes it.
 
 ### More than one subscription
 
-If you keep a second Claude Code or Codex sign-in in its own folder, uNotch finds
-it automatically:
+If you keep a second Claude Code, Codex, or Cursor sign-in in its own folder,
+uNotch finds it automatically:
 
 ```sh
 alias cc-dev='CLAUDE_CONFIG_DIR=~/.claude-dev claude'
 alias cx-work='CODEX_HOME=~/.codex-work codex'
+alias agent-work='CURSOR_CONFIG_DIR=~/.cursor-work agent'
 ```
 
 The folder and the alias can be called anything. uNotch looks one level into your
 home folder and `~/.config` for a directory the CLI has used as its home — Claude
 Code leaves a `.claude.json` there; Codex leaves an `auth.json` beside its
-`config.toml` — and reads it with the same environment variable.
-The label comes from the folder name (`~/.claude-dev` → `dev`).
+`config.toml`; Cursor Agent leaves a `cli-config.json` (the default `~/.cursor`
+is not a second sign-in) — and reads that sign-in. There is nothing else to
+configure.
+The label comes from the folder name (`~/.claude-dev` → `dev`,
+`~/.cursor-work` → `work`).
 
 Each provider still has one ring. Once a second subscription is signed in, a
 strip appears under the pop-out's title with one cell per subscription — its name
@@ -65,8 +69,7 @@ provider opens on and its ring reports whenever the HUD is closed. Click it agai
 to clear. The cells share the row equally, so five subscriptions read as cleanly
 as two; a long name trails off, and hovering it shows the full name. A
 subscription that is signed out is not shown; sign in with your alias and it
-appears within a minute. Cursor Agent keeps a single sign-in per Mac user, so it
-always has exactly one.
+appears within a minute.
 
 ## Install
 
@@ -81,9 +84,12 @@ The installer supports Apple silicon Macs running macOS 14 Sonoma or newer.
 
 - Move the pointer to the subtle cue at the screen edge and hold for 150 ms to
   reveal the HUD.
-- Hover a provider logo to switch providers and refresh stale usage. The hovered
-  ring and its percent turn red when remaining is under 10% — a full red circle
-  even at 0%. 10% and above stay mint. Providers without an installed CLI are not shown; install one and its
+- Hover a provider logo to switch providers and refresh stale usage. A ring at
+  or below 10% remaining is red, hovered or not — a full red circle even at 0%.
+  Above 10% the ring you are on is mint. The first time something drops to 10%
+  or below, the whole edge cue turns red. Opening it dismisses that, and the
+  cue stays quiet until that usage climbs above 10% and drops again. Claude's
+  ring follows the lower of the 5-hour window and the weekly limit. Providers without an installed CLI are not shown; install one and its
   ring appears within a minute.
 - Use the refresh control for an immediate read from the selected local CLI.
 - Drag the rail vertically or across the display to place it on either edge.

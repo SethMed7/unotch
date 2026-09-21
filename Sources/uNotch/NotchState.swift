@@ -93,8 +93,10 @@ struct MonitorSource: Hashable, Identifiable, Sendable {
         guard let configDirectory else { return nil }
         let folder = URL(fileURLWithPath: configDirectory).lastPathComponent
         let name = String(folder.drop { $0 == "." })
-        guard name.lowercased().hasPrefix(provider.rawValue) else { return name.isEmpty ? folder : name }
-        let rest = name.dropFirst(provider.rawValue.count).drop { "-_. ".contains($0) }
+        // Grok Bot is a Cursor sign-in, so `~/.cursor-agent2` is "agent2" for both.
+        let prefix = (provider == .grokBot ? Provider.cursor : provider).rawValue
+        guard name.lowercased().hasPrefix(prefix.lowercased()) else { return name.isEmpty ? folder : name }
+        let rest = name.dropFirst(prefix.count).drop { "-_. ".contains($0) }
         return rest.isEmpty ? name : String(rest)
     }
 
@@ -219,6 +221,20 @@ final class UsageMonitor: ObservableObject {
     /// The subscription each provider opens on and its ring reports: the one the user
     /// clicked to make the default. Kept across launches.
     @Published private(set) var favorites: [Provider: MonitorSource]
+    /// Low subscriptions the user has already opened the HUD to see. A subscription
+    /// leaves this set when it climbs back above 10%, so the next drop can alert again.
+    @Published private var seenLow: Set<MonitorSource> = []
+    /// True while the HUD is open. Lows that appear then are already in view, so they
+    /// do not light the idle cue after it closes.
+    var isLooking = false {
+        didSet { reconcileLowUsage() }
+    }
+
+    /// The idle cue stays red until the HUD is opened, once any signed-in subscription
+    /// has a meter at or below 10%.
+    var hasUnseenLowUsage: Bool {
+        !currentLowSources.subtracting(seenLow).isEmpty
+    }
     /// Subscriptions whose last conclusive read proved a sign-in. A failed read proves
     /// nothing either way, so it leaves this alone.
     private var signedIn: Set<MonitorSource> = []
@@ -394,8 +410,30 @@ final class UsageMonitor: ObservableObject {
             }
             self.snapshots[source] = freshSnapshot
             self.refreshTasks[source] = nil
+            self.reconcileLowUsage()
             if source.provider.needsProof { self.updateProviders() }
         }
+    }
+
+    private var currentLowSources: Set<MonitorSource> {
+        Set(sources.filter { signedIn.contains($0) && isLow(snapshot(for: $0)) })
+    }
+
+    private func isLow(_ snapshot: UsageSnapshot) -> Bool {
+        snapshot.limits.contains { $0.showsMeter && HUDMetrics.isLowRemaining($0.remainingFraction) }
+    }
+
+    /// A low subscription is seen once the HUD is opened. It stays seen through later
+    /// refreshes, including a failed read, and is forgotten only when a loaded read
+    /// shows it back above 10%. That is what makes the cue fire once.
+    private func reconcileLowUsage() {
+        let recovered = seenLow.filter { source in
+            let snapshot = snapshot(for: source)
+            return snapshot.state == .loaded && !isLow(snapshot)
+        }
+        var next = seenLow.subtracting(recovered)
+        if isLooking { next.formUnion(currentLowSources) }
+        if next != seenLow { seenLow = next }
     }
 
     private func freshnessInterval(for source: MonitorSource) -> TimeInterval {
@@ -421,6 +459,7 @@ final class NotchState: ObservableObject {
     @Published var isPointerInside = false
     @Published var isExpanded = false {
         didSet {
+            monitor.isLooking = isExpanded
             guard !isExpanded else { return }
             // Collapsing always returns the HUD to usage; settings never persist, and
             // neither does a subscription that was only being looked at.

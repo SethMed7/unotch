@@ -50,3 +50,22 @@ struct StubFetcher: UsageFetching {
         installed
     }
 }
+
+/// One snapshot that a test can replace between refreshes.
+final class ScriptedFetcher: UsageFetching, @unchecked Sendable {
+    var snapshot: UsageSnapshot
+
+    init(snapshot: UsageSnapshot) {
+        self.snapshot = snapshot
+    }
+
+    func fetchUsage(for source: MonitorSource) async -> UsageSnapshot {
+        var next = snapshot
+        next.source = source
+        return next
+    }
+
+    func installedSources() -> [MonitorSource] {
+        [snapshot.source]
+    }
+}

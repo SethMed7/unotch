@@ -16,9 +16,9 @@ actor CLIUsageFetcher: UsageFetching {
             case .claude:
                 return Self.fetchClaudeUsage(for: source)
             case .cursor:
-                return Self.fetchCursorUsage()
+                return Self.fetchCursorUsage(for: source)
             case .grokBot:
-                return Self.fetchGrokBotUsage()
+                return Self.fetchGrokBotUsage(for: source)
             }
         }.value
     }
@@ -30,14 +30,19 @@ actor CLIUsageFetcher: UsageFetching {
                 let extras = Self.configDirectories(for: source.provider).map {
                     MonitorSource(provider: source.provider, configDirectory: $0)
                 }
-                // Grok Bot is read through the Cursor sign-in, so it comes with Cursor.
-                let companions: [MonitorSource] = source.provider == .cursor ? [.grokBot] : []
-                return [source] + extras + companions
+                let accounts = [source] + extras
+                // Grok Bot is part of a Cursor plan, so each Cursor sign-in brings its own.
+                guard source.provider == .cursor else { return accounts }
+                let grok = accounts.map {
+                    MonitorSource(provider: .grokBot, configDirectory: $0.configDirectory)
+                }
+                return accounts + grok
             }
     }
 
-    /// Extra sign-ins of one CLI, e.g. `alias cc-dev='CLAUDE_CONFIG_DIR=~/.claude-dev claude'`
-    /// or `CODEX_HOME=~/.codex-work codex`. Everyone names these differently, so the
+    /// Extra sign-ins of one CLI, e.g. `alias cc-dev='CLAUDE_CONFIG_DIR=~/.claude-dev claude'`,
+    /// `CODEX_HOME=~/.codex-work codex`, or `CURSOR_CONFIG_DIR=~/.cursor-agent2`. Everyone
+    /// names these differently, so the
     /// folder name means nothing; what marks one is what the CLI leaves inside it.
     /// Looks one level into the home folder and `~/.config`. Only names are checked;
     /// nothing is read.
@@ -68,8 +73,15 @@ actor CLIUsageFetcher: UsageFetching {
                     && ["config.toml", "version.json", "installation_id"]
                         .contains { has($0, in: folder) }
             }
-        case .cursor, .grokBot:
-            // Cursor Agent keeps one sign-in per Mac user, whatever `CURSOR_CONFIG_DIR` says.
+        case .cursor:
+            // `cli-config.json` is what Agent writes when `CURSOR_CONFIG_DIR` points here.
+            // `~/.cursor` is the default login, not an extra.
+            let defaultHome = home.appendingPathComponent(".cursor").resolvingSymlinksInPath().path
+            isSignIn = { folder in
+                folder.resolvingSymlinksInPath().path != defaultHome
+                    && has("cli-config.json", in: folder)
+            }
+        case .grokBot:
             return []
         }
 
@@ -182,9 +194,22 @@ actor CLIUsageFetcher: UsageFetching {
         }
     }
 
-    private static func fetchCursorUsage() -> UsageSnapshot {
+    private static func fetchCursorUsage(for source: MonitorSource) -> UsageSnapshot {
+        guard executablePath(for: .cursor) != nil else {
+            return .unavailable(source: source, message: "Cursor Agent CLI not found")
+        }
+
+        // A second folder does not get its own keychain item. Its session is the file
+        // store, and `agent status` would only describe the keychain login.
+        if source.configDirectory != nil {
+            guard let token = cursorExtraToken(for: source) else {
+                return .unavailable(source: source, message: "Sign in with Cursor Agent CLI")
+            }
+            return fetchCursorDashboard(source: source, token: token)
+        }
+
         guard let executable = executablePath(for: .cursor) else {
-            return .unavailable(source: .cursor, message: "Cursor Agent CLI not found")
+            return .unavailable(source: source, message: "Cursor Agent CLI not found")
         }
 
         do {
@@ -197,7 +222,7 @@ actor CLIUsageFetcher: UsageFetching {
                 return .unavailable(source: .cursor, message: "Sign in with Cursor Agent CLI")
             }
 
-            if let token = cursorAccessToken(),
+            if let token = cursorKeychainToken(),
                let period = try? ProcessRunner.cursorDashboard(
                 method: "GetCurrentPeriodUsage",
                 token: token
@@ -218,33 +243,150 @@ actor CLIUsageFetcher: UsageFetching {
     }
 
     /// Grok Bot's allowance is Cursor's `GetSandUsageStatus` (Grok Bot's bundle is
-    /// `com.anysphere.sand`). No token means no Cursor sign-in; a plan without Grok Bot
-    /// answers with no included allowance, and the ring stays off the rail.
-    private static func fetchGrokBotUsage() -> UsageSnapshot {
+    /// `com.anysphere.sand`), read with that Cursor sign-in's token. No token means no
+    /// Cursor sign-in; a plan without Grok Bot answers with no included allowance, and
+    /// that subscription stays off the strip. The ring stays off the rail until one
+    /// sign-in includes it.
+    private static func fetchGrokBotUsage(for source: MonitorSource) -> UsageSnapshot {
         guard executablePath(for: .cursor) != nil else {
-            return .unavailable(source: .grokBot, message: "Cursor Agent CLI not found")
+            return .unavailable(source: source, message: "Cursor Agent CLI not found")
         }
-        guard let token = cursorAccessToken() else {
-            return .unavailable(source: .grokBot, message: "Sign in with Cursor Agent CLI")
+        let token = source.configDirectory == nil
+            ? cursorKeychainToken()
+            : cursorExtraToken(for: source)
+        guard let token else {
+            return .unavailable(source: source, message: "Sign in with Cursor Agent CLI")
         }
         do {
             let sand = try ProcessRunner.cursorDashboard(method: "GetSandUsageStatus", token: token)
-            return try UsageCLIParser.grokBot(sand)
+            return try UsageCLIParser.grokBot(sand, source: source)
         } catch {
-            return .failed(source: .grokBot, message: userFacingMessage(error))
+            return .failed(source: source, message: userFacingMessage(error))
         }
     }
 
-    /// The Cursor Agent CLI stores its session in the login keychain. Reading it
-    /// lets uNotch call the same free dashboard usage RPCs the Agent `/usage`
+    /// Usage for one session token. A failed read stays failed: falling through to
+    /// `agent /usage` would report the keychain login under this subscription's name.
+    private static func fetchCursorDashboard(source: MonitorSource, token: String) -> UsageSnapshot {
+        do {
+            let period = try ProcessRunner.cursorDashboard(
+                method: "GetCurrentPeriodUsage",
+                token: token
+            )
+            return try UsageCLIParser.cursorDashboard(period: period, source: source)
+        } catch {
+            return .failed(source: source, message: userFacingMessage(error))
+        }
+    }
+
+    /// The session for a `CURSOR_CONFIG_DIR` folder. People only set that variable;
+    /// the folder name is the whole configuration. The token is whatever that
+    /// sign-in stored: `auth.json` in the folder, a keychain item named after the
+    /// folder, or the default file store when its subject is the folder's auth id.
+    /// The Mac's keychain login (`cursor-access-token`) is the default subscription,
+    /// never also an extra.
+    private static func cursorExtraToken(for source: MonitorSource) -> String? {
+        guard let directory = source.configDirectory else { return nil }
+        let folder = URL(fileURLWithPath: directory)
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let named = cursorKeychainName(forConfigDirectory: directory)
+        return cursorSessionToken(
+            keychainToken: cursorKeychainToken(),
+            directoryToken: cursorFileToken(at: folder.appendingPathComponent("auth.json")),
+            defaultFileToken: cursorFileToken(
+                at: home.appendingPathComponent(".cursor").appendingPathComponent("auth.json")
+            ),
+            authId: cursorAuthId(in: folder),
+            directoryKeychainToken: named.flatMap {
+                cursorKeychainToken(service: $0.service, account: $0.account)
+            }
+        )
+    }
+
+    /// `~/.cursor-agent2` → keychain service `cursor-agent2-access-token`, account
+    /// `cursor-agent2-user`. nil for the default `~/.cursor` login.
+    static func cursorKeychainName(forConfigDirectory path: String) -> (service: String, account: String)? {
+        let folder = URL(fileURLWithPath: path).lastPathComponent
+        let name = String(folder.drop { $0 == "." })
+        guard !name.isEmpty, name != "cursor" else { return nil }
+        return ("\(name)-access-token", "\(name)-user")
+    }
+
+    static func cursorSessionToken(
+        keychainToken: String?,
+        directoryToken: String?,
+        defaultFileToken: String?,
+        authId: String?,
+        directoryKeychainToken: String? = nil
+    ) -> String? {
+        let keychainSubject = keychainToken.flatMap(cursorTokenSubject)
+        func isAnotherAccount(_ token: String) -> Bool {
+            guard let subject = cursorTokenSubject(token) else { return keychainToken == nil }
+            return subject != keychainSubject
+        }
+
+        if let directoryToken {
+            return isAnotherAccount(directoryToken) ? directoryToken : nil
+        }
+        if let directoryKeychainToken {
+            return isAnotherAccount(directoryKeychainToken) ? directoryKeychainToken : nil
+        }
+        guard let defaultFileToken,
+              let authId, !authId.isEmpty,
+              cursorTokenSubject(defaultFileToken) == authId,
+              isAnotherAccount(defaultFileToken) else { return nil }
+        return defaultFileToken
+    }
+
+    /// `sub` from a Cursor session JWT. nil when the token is not one.
+    static func cursorTokenSubject(_ token: String) -> String? {
+        let parts = token.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+        var payload = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = payload.count % 4
+        if remainder != 0 {
+            payload += String(repeating: "=", count: 4 - remainder)
+        }
+        guard let data = Data(base64Encoded: payload),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let subject = object["sub"] as? String,
+              !subject.isEmpty else { return nil }
+        return subject
+    }
+
+    private static func cursorFileToken(at url: URL) -> String? {
+        guard let data = try? Data(contentsOf: url),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let token = object["accessToken"] as? String else { return nil }
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func cursorAuthId(in folder: URL) -> String? {
+        let url = folder.appendingPathComponent("cli-config.json")
+        guard let data = try? Data(contentsOf: url),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let info = object["authInfo"] as? [String: Any],
+              let authId = info["authId"] as? String,
+              !authId.isEmpty else { return nil }
+        return authId
+    }
+
+    /// The Cursor Agent CLI stores its default session in the login keychain. Reading
+    /// it lets uNotch call the same free dashboard usage RPCs the Agent `/usage`
     /// screen uses, including Grok Bot. The token is never stored.
-    private static func cursorAccessToken() -> String? {
+    private static func cursorKeychainToken(
+        service: String = "cursor-access-token",
+        account: String = "cursor-user"
+    ) -> String? {
         guard let data = try? ProcessRunner.run(
             executable: "/usr/bin/security",
             arguments: [
                 "find-generic-password",
-                "-s", "cursor-access-token",
-                "-a", "cursor-user",
+                "-s", service,
+                "-a", account,
                 "-w"
             ],
             timeout: 4
@@ -306,12 +448,17 @@ enum UsageCLIParser {
                 }
             )
         }
-        if let count = result.rateLimitResetCredits?.availableCount, count > 0 {
+        if let count = result.rateLimitResetCredits?.availableCount {
+            let text = switch count {
+            case 0: "0 resets"
+            case 1: "1 available"
+            default: "\(count) available"
+            }
             parsedLimits.append(
                 UsageLimit(
                     label: "Resets available",
-                    remainingFraction: 1,
-                    valueText: count == 1 ? "1 available" : "\(count) available",
+                    remainingFraction: count > 0 ? 1 : 0,
+                    valueText: text,
                     showsMeter: false,
                     contributesToSummary: false
                 )
@@ -338,8 +485,7 @@ enum UsageCLIParser {
             parseClaudeLine(
                 lines,
                 prefix: "Current week (all models):",
-                label: "Weekly limit",
-                contributesToSummary: false
+                label: "Weekly limit"
             ),
             parseClaudeLine(
                 lines,
@@ -408,7 +554,11 @@ enum UsageCLIParser {
         )
     }
 
-    static func cursorDashboard(period: Data, now: Date = Date()) throws -> UsageSnapshot {
+    static func cursorDashboard(
+        period: Data,
+        source: MonitorSource = .cursor,
+        now: Date = Date()
+    ) throws -> UsageSnapshot {
         guard let root = jsonObject(period),
               let planUsage = root["planUsage"] as? [String: Any] else {
             throw CLIUsageError("Cursor dashboard returned no plan usage")
@@ -449,7 +599,7 @@ enum UsageCLIParser {
         }
 
         return UsageSnapshot(
-            source: .cursor,
+            source: source,
             limits: limits,
             updatedAt: now,
             state: .loaded
@@ -459,7 +609,11 @@ enum UsageCLIParser {
     /// Grok Bot's own allowance from `GetSandUsageStatus`. A plan with no included
     /// allowance — pooled enterprise, or none at all — is a conclusive "not here", so
     /// it comes back unavailable rather than failed and the ring stays hidden.
-    static func grokBot(_ data: Data, now: Date = Date()) throws -> UsageSnapshot {
+    static func grokBot(
+        _ data: Data,
+        source: MonitorSource = .grokBot,
+        now: Date = Date()
+    ) throws -> UsageSnapshot {
         guard let json = jsonObject(data) else {
             throw CLIUsageError("Cursor dashboard returned no Grok Bot usage")
         }
@@ -467,11 +621,11 @@ enum UsageCLIParser {
               !flag(json["includedLimitZero"]),
               flag(json["hasNonZeroIncludedLimit"]),
               let used = percentValue(json["usagePercent"]) else {
-            return .unavailable(source: .grokBot, message: "Not included in this Cursor plan")
+            return .unavailable(source: source, message: "Not included in this Cursor plan")
         }
 
         return UsageSnapshot(
-            source: .grokBot,
+            source: source,
             limits: [
                 UsageLimit(
                     label: "Grok Bot",

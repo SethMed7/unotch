@@ -6,6 +6,25 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-09-21
+
+### Added
+- **Multiple Cursor subscriptions.** A second Cursor Agent sign-in kept in its
+  own folder — `CURSOR_CONFIG_DIR=~/.cursor-work agent` — joins Cursor's pop-out
+  the same way Claude's do. The cell is named from the folder (`work`). Setting
+  the variable is the whole setup; uNotch finds the folder and reads that
+  sign-in.
+- **Grok Bot follows each Cursor sign-in.** A second Cursor subscription brings
+  its own Grok Bot allowance into Grok Bot's pop-out, named the same way.
+
+### Changed
+- Codex shows **0 resets** when the account has banked resets and none are left.
+- Claude's ring follows the lower of the 5-hour window and the weekly limit.
+- At or below **10%** remaining, that ring is red whether or not it is hovered.
+  The whole edge cue turns red once when something drops that low. Opening the
+  HUD dismisses it, and it stays quiet until that usage climbs back above 10%
+  and drops again.
+
 ## [1.5.4] — 2026-09-18
 
 ### Fixed
@@ -198,7 +217,8 @@ it has no extra subscriptions to find; its sign-in check is unchanged.
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.5.4...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/SethMed7/unotch/compare/v1.5.4...v1.6.0
 [1.5.4]: https://github.com/SethMed7/unotch/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/SethMed7/unotch/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/SethMed7/unotch/compare/v1.5.1...v1.5.2
