@@ -714,7 +714,7 @@ private struct RedeemResetButton: View {
         }
         .buttonStyle(.plain)
         .disabled(isBusy)
-        .help("Spend one banked Codex reset on this plan")
+        .help("Use one available reset on this subscription")
         .accessibilityLabel(isBusy ? "Using reset" : "Use reset")
         .onHoverAlways { isHovering = $0 }
         .animation(Brand.fade, value: isHovering)

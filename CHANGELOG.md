@@ -6,6 +6,22 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-09-22
+
+### Added
+- **Claude limit resets in the HUD.** When Claude has granted your account a
+  usage-limit reset (the kind claude.ai shows under Settings → Usage → Resets),
+  Claude's pop-out gains a **Resets available** row with the count and its
+  expiry, and **Use reset** applies one from the HUD — the same
+  `reset_rate_limits` call Claude Code's own "Use an available limit reset"
+  makes. A spent grant shows **0 resets**. Extra `CLAUDE_CONFIG_DIR` sign-ins
+  each report their own.
+
+### Changed
+- Claude's resets are read from Claude's usage endpoint with the OAuth token
+  Claude Code keeps in the login keychain, every ten minutes and after a reset;
+  the per-minute usage read still goes through the CLI. See PRIVACY.md.
+
 ## [1.7.0] — 2026-09-22
 
 ### Added
@@ -224,7 +240,8 @@ it has no extra subscriptions to find; its sign-in check is unchanged.
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/SethMed7/unotch/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/SethMed7/unotch/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/SethMed7/unotch/compare/v1.5.4...v1.6.0
 [1.5.4]: https://github.com/SethMed7/unotch/compare/v1.5.3...v1.5.4

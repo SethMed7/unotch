@@ -30,13 +30,15 @@ dashboard window and no Dock icon.
 
 | Provider | Local source | Usage shown |
 | --- | --- | --- |
-| Claude | Claude Code CLI `/usage` | 5-hour, weekly, and Fable limits |
+| Claude | Claude Code CLI `/usage`, plus Claude's usage endpoint for resets | 5-hour, weekly, and Fable limits, plus granted limit resets when any (Use reset applies one) |
 | Codex | Codex app-server rate limits | Plan windows, plus banked resets when any remain (Use reset spends one) |
 | Cursor | Cursor dashboard usage RPCs (Agent `/usage` fallback) | Cursor Models and Other Models |
 | Grok Bot | Cursor dashboard usage RPCs, through the Cursor sign-in | Grok Bot's own allowance |
 
-All usage is read from command-line tools already authenticated on your Mac.
-uNotch does not ask for, copy, or store provider credentials. Only the providers
+All usage is read from command-line tools already authenticated on your Mac, or
+with the session those tools already keep in your login keychain (Cursor's
+dashboard RPCs; Claude's usage endpoint, for resets). uNotch does not ask for,
+copy, or store provider credentials. Only the providers
 whose CLI is installed appear; the rail sizes to fit one to four. Grok Bot has no
 CLI of its own — its ring sits under Cursor's and appears once a read shows your
 Cursor plan includes it.
@@ -94,6 +96,11 @@ The installer supports Apple silicon Macs running macOS 14 Sonoma or newer.
 - Use the refresh control for an immediate read from the selected local CLI.
 - On Codex, when **Resets available** shows a count above zero, **Use reset**
   spends one banked credit through the local Codex CLI and refreshes usage.
+- On Claude, when your account has been granted a limit reset (what claude.ai
+  lists under Settings → Usage → Resets), **Resets available** shows the count
+  and its expiry, and **Use reset** applies one — the same request Claude Code
+  makes for "Use an available limit reset" — then refreshes usage. Resets are
+  checked every ten minutes, so a new grant can take that long to appear.
 - Drag the rail vertically or across the display to place it on either edge.
 - Hover the settings gear at the bottom of the rail. The section hangs from the
   gear so you can move into it, and it holds everything uNotch can be told:

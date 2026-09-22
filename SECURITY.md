@@ -70,6 +70,15 @@ sending only `/usage`, reading the usage screen, exiting, and removing the
 workspace. Paths are passed as environment values rather than interpolated
 into a shell command.
 
+The Claude reader asks Claude's usage endpoint on `api.anthropic.com` for
+granted limit resets every ten minutes, with the OAuth token Claude Code
+already stores in the login keychain (`Claude Code-credentials`, suffixed with
+the first eight hex digits of SHA-256 over the folder path for a
+`CLAUDE_CONFIG_DIR` sign-in — Claude Code's own naming). **Use reset** posts
+`reset_rate_limits` for that sign-in's organization with the grant id from the
+last read and a fresh request id. The token is used as a bearer and is not
+written anywhere; the per-minute usage read still goes through the CLI.
+
 The application is not App Sandbox-enabled because its core function requires
 launching separately installed command-line tools. It does not request
 Accessibility, Screen Recording, Full Disk Access, microphone, camera, contacts,

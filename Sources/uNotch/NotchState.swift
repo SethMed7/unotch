@@ -121,7 +121,7 @@ struct UsageLimit: Equatable, Identifiable, Sendable {
     let valueText: String?
     let showsMeter: Bool
     let contributesToSummary: Bool
-    /// When true, the HUD offers a control that spends one banked Codex reset.
+    /// When true, the HUD offers a control that spends one available reset.
     let canRedeem: Bool
 
     var id: String { label }
@@ -228,7 +228,7 @@ final class UsageMonitor: ObservableObject {
     /// Low subscriptions the user has already opened the HUD to see. A subscription
     /// leaves this set when it climbs back above 10%, so the next drop can alert again.
     @Published private var seenLow: Set<MonitorSource> = []
-    /// True while a Codex reset credit is being spent for the selected subscription.
+    /// True while a reset is being spent for the selected subscription.
     @Published private(set) var isRedeemingReset = false
     /// Short note after a reset attempt that did not clear usage, cleared on the next
     /// successful refresh or another redeem.
@@ -382,23 +382,23 @@ final class UsageMonitor: ObservableObject {
         requestRefresh(for: provider, force: false)
     }
 
-    /// True when the selected Codex subscription has at least one banked reset credit.
+    /// True when the selected subscription has a reset it can spend: a banked Codex
+    /// credit, or a Claude limit reset the account holds.
     var canRedeemAvailableReset: Bool {
         snapshot.limits.contains(where: \.canRedeem)
     }
 
-    /// Spends one banked Codex reset for the selected subscription, then re-reads usage.
+    /// Spends one available reset for the selected subscription, then re-reads usage.
     func redeemAvailableReset() {
         let source = selectedSource(for: selectedProvider)
-        guard source.provider == .codex,
-              canRedeemAvailableReset,
+        guard canRedeemAvailableReset,
               !isRedeemingReset,
               redeemTask == nil else { return }
 
         isRedeemingReset = true
         resetStatusMessage = nil
         redeemTask = Task { [weak self, fetcher] in
-            let result = await fetcher.redeemCodexReset(for: source)
+            let result = await fetcher.redeemReset(for: source)
             guard !Task.isCancelled, let self else { return }
             self.isRedeemingReset = false
             self.redeemTask = nil

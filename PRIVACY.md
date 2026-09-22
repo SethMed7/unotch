@@ -11,6 +11,19 @@ output:
 
 - Claude Code: 5-hour, weekly, and Fable plan usage. When a read returns no
   limits, uNotch also runs `claude auth status` and uses only its signed-in flag.
+  Every ten minutes, and once more after you use a reset, that read instead goes
+  straight to Claude's usage endpoint (`/api/oauth/usage` on
+  `api.anthropic.com`), which is the only place Claude reports the limit resets
+  your account has been granted. It is authenticated with the OAuth token Claude
+  Code stores in the login keychain (`Claude Code-credentials`, or the same name
+  with a suffix for a `CLAUDE_CONFIG_DIR` sign-in), read into memory for that
+  request and not stored. The request identifies the installed Claude Code
+  version (from `claude --version`, read once) and uNotch in its user agent,
+  because Claude offers resets only to a current Claude Code. **Use reset**
+  (only when you click it) reads `/api/oauth/profile` for the organization id
+  and posts `reset_rate_limits` naming the grant; it applies one reset to that
+  account, as Claude Code's own "Use an available limit reset" does, and sends
+  no prompts or project data.
 - Codex: available account rate-limit windows and banked reset counts. When a
   read fails, uNotch also runs `codex login status` and uses only its exit code.
   **Use reset** (only when you click it) sends
@@ -67,7 +80,7 @@ defaults delete app.unotch.utility
 
 ## Network and analytics
 
-uNotch makes two kinds of network request, both over HTTPS:
+uNotch makes three kinds of network request, all over HTTPS:
 
 - **Update & Restart**, only when you ask for it. That flow requests the latest
   release metadata from `api.github.com` and, if that release is newer than the
@@ -80,6 +93,14 @@ uNotch makes two kinds of network request, both over HTTPS:
   with the local session token as a bearer. Those endpoints report plan usage;
   they do not run models or spend included usage. The response is parsed in
   memory for percentages and reset times only.
+- **Claude usage and resets**, every ten minutes per Claude sign-in and after
+  you use a reset. uNotch gets `/api/oauth/usage` on `api.anthropic.com` with
+  the keychain OAuth token as a bearer; it reports plan usage and granted
+  resets and does not run models. Clicking **Use reset** adds one get of
+  `/api/oauth/profile` and one post of `reset_rate_limits` for that
+  organization. Responses are parsed in memory for percentages, reset times,
+  the resets count, and the grant id; the organization id is used for that
+  request and not kept.
 
 uNotch does not run a local server or listen on a port. It includes no
 analytics, telemetry, advertising, tracking pixels, or third-party
@@ -97,7 +118,9 @@ settings. uNotch does not add a separate diagnostics service.
 uNotch never asks you to type an API key. It relies on the normal
 authentication state of each installed CLI. For Cursor dashboard usage it
 reads the existing `cursor-access-token` keychain item created by Cursor
-Agent, uses it for that HTTPS request, and does not persist it. Signing and
+Agent, uses it for that HTTPS request, and does not persist it. For Claude
+resets it reads the existing `Claude Code-credentials` keychain item created
+by Claude Code the same way. Signing and
 notarization credentials used to build a release remain in the release
 operator's Keychain and are not stored in this repository or bundled with
 the app.

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 protocol UsageFetching: Sendable {
@@ -5,19 +6,21 @@ protocol UsageFetching: Sendable {
     /// Subscriptions whose local CLI is present on this Mac, including extra sign-ins
     /// of the same CLI. Cheap file checks; safe to call often.
     func installedSources() -> [MonitorSource]
-    /// Spends one banked Codex reset credit for this sign-in. Other providers return
+    /// Spends one available reset for this sign-in: a banked Codex credit, or a Claude
+    /// limit reset the account has been granted. Providers without resets return
     /// `.unsupported`. Callers refresh usage after a conclusive outcome.
-    func redeemCodexReset(for source: MonitorSource) async -> CodexResetResult
+    func redeemReset(for source: MonitorSource) async -> ResetResult
 }
 
 extension UsageFetching {
-    func redeemCodexReset(for source: MonitorSource) async -> CodexResetResult {
+    func redeemReset(for source: MonitorSource) async -> ResetResult {
         .unsupported
     }
 }
 
-/// What Codex's `account/rateLimitResetCredit/consume` reported, or why it could not.
-enum CodexResetResult: Equatable, Sendable {
+/// What a reset request reported, or why it could not be sent. Codex answers through
+/// `account/rateLimitResetCredit/consume`; Claude through `reset_rate_limits`.
+enum ResetResult: Equatable, Sendable {
     case reset
     case nothingToReset
     case noCredit
@@ -38,19 +41,48 @@ enum CodexResetResult: Equatable, Sendable {
         case .nothingToReset: "Nothing to reset"
         case .noCredit: "No resets available"
         case .failed(let message): message
-        case .unsupported: "Reset is only available for Codex"
+        case .unsupported: "No resets for this subscription"
         }
     }
 }
 
 actor CLIUsageFetcher: UsageFetching {
+    /// What Claude's usage endpoint last said about a sign-in's limit resets: the row
+    /// for the HUD, the grant a claim must name, and when it was read.
+    private struct ClaudeResets {
+        var limit: UsageLimit?
+        var grantID: String?
+        var readAt: Date
+    }
+
+    /// Claude's usage endpoint answers about one read a minute per account, and Claude
+    /// Code's own `/usage` shares that budget through a 60-second snapshot. The CLI
+    /// stays the every-minute reader so that snapshot keeps being refreshed; the
+    /// endpoint is asked directly — the only place resets are reported — every
+    /// `claudeResetsInterval`, and again right after a reset is used.
+    private var claudeResets: [MonitorSource: ClaudeResets] = [:]
+    /// After a rate-limited direct read, that sign-in waits this long before asking
+    /// again; the last known resets row stays on the HUD meanwhile.
+    private var claudeDirectBackoffUntil: [MonitorSource: Date] = [:]
+    /// `claude --version`, looked up once it answers. The usage endpoint offers resets
+    /// only to a current Claude Code, so the direct read identifies the install it
+    /// acts for.
+    private var claudeCLIVersion: String?
+
+    private static let claudeResetsInterval: TimeInterval = 10 * 60
+    private static let claudeResetsKeptFor: TimeInterval = 30 * 60
+    private static let claudeDirectBackoff: TimeInterval = 5 * 60
+
     func fetchUsage(for source: MonitorSource) async -> UsageSnapshot {
-        await Task.detached(priority: .utility) {
+        if source.provider == .claude {
+            return await fetchClaude(for: source)
+        }
+        return await Task.detached(priority: .utility) {
             switch source.provider {
             case .codex:
                 return Self.fetchCodexUsage(for: source)
             case .claude:
-                return Self.fetchClaudeUsage(for: source)
+                return Self.fetchClaudeCLIUsage(for: source)
             case .cursor:
                 return Self.fetchCursorUsage(for: source)
             case .grokBot:
@@ -59,11 +91,62 @@ actor CLIUsageFetcher: UsageFetching {
         }.value
     }
 
-    func redeemCodexReset(for source: MonitorSource) async -> CodexResetResult {
-        guard source.provider == .codex else { return .unsupported }
-        return await Task.detached(priority: .utility) {
-            Self.redeemCodexReset(for: source)
+    func redeemReset(for source: MonitorSource) async -> ResetResult {
+        switch source.provider {
+        case .codex:
+            return await Task.detached(priority: .utility) {
+                Self.redeemCodexReset(for: source)
+            }.value
+        case .claude:
+            guard let version = await claudeVersion() else { return .failed("Claude CLI not found") }
+            let known = claudeResets[source]?.grantID
+            let result = await Task.detached(priority: .utility) {
+                Self.redeemClaudeReset(for: source, grantID: known, cliVersion: version)
+            }.value
+            // Whatever the answer, the next read asks the endpoint so the row is current.
+            claudeResets[source] = nil
+            claudeDirectBackoffUntil[source] = nil
+            return result
+        case .cursor, .grokBot:
+            return .unsupported
+        }
+    }
+
+    private func fetchClaude(for source: MonitorSource) async -> UsageSnapshot {
+        let now = Date()
+        let known = claudeResets[source]
+        let due = known.map { now.timeIntervalSince($0.readAt) >= Self.claudeResetsInterval } ?? true
+        let backedOff = (claudeDirectBackoffUntil[source] ?? .distantPast) > now
+
+        if due, !backedOff, let version = await claudeVersion() {
+            let direct = await Task.detached(priority: .utility) {
+                Self.fetchClaudeDirectUsage(for: source, cliVersion: version)
+            }.value
+            if case .loaded(let snapshot, let limit, let grantID) = direct {
+                claudeResets[source] = ClaudeResets(limit: limit, grantID: grantID, readAt: now)
+                return snapshot
+            }
+            // Rate limited, or a token the CLI still has to refresh: leave the endpoint
+            // alone for a while rather than asking twice a minute.
+            claudeDirectBackoffUntil[source] = now.addingTimeInterval(Self.claudeDirectBackoff)
+        }
+
+        var snapshot = await Task.detached(priority: .utility) {
+            Self.fetchClaudeCLIUsage(for: source)
         }.value
+        if snapshot.state == .loaded, let known,
+           now.timeIntervalSince(known.readAt) < Self.claudeResetsKeptFor,
+           let limit = known.limit {
+            snapshot.limits.append(limit)
+        }
+        return snapshot
+    }
+
+    private func claudeVersion() async -> String? {
+        if let cached = claudeCLIVersion { return cached }
+        let version = await Task.detached(priority: .utility) { Self.claudeCLIVersion() }.value
+        claudeCLIVersion = version
+        return version
     }
 
     nonisolated func installedSources() -> [MonitorSource] {
@@ -203,7 +286,7 @@ actor CLIUsageFetcher: UsageFetching {
         }
     }
 
-    private static func redeemCodexReset(for source: MonitorSource) -> CodexResetResult {
+    private static func redeemCodexReset(for source: MonitorSource) -> ResetResult {
         guard let executable = executablePath(for: .codex) else {
             return .failed("Codex CLI not found")
         }
@@ -223,7 +306,124 @@ actor CLIUsageFetcher: UsageFetching {
         }
     }
 
-    private static func fetchClaudeUsage(for source: MonitorSource) -> UsageSnapshot {
+    enum ClaudeDirectRead {
+        /// Usage plus, when the account has any, the Resets available row and the
+        /// grant a claim would name.
+        case loaded(UsageSnapshot, resets: UsageLimit?, grantID: String?)
+        case rateLimited
+        case unavailable
+    }
+
+    private static let claudeUsagePath = "/api/oauth/usage?cedar_ember=1&skip_spend=1"
+
+    /// Claude's usage straight from the endpoint Claude Code's `/usage` asks, with the
+    /// OAuth token Claude Code keeps in the login keychain. Asked with `cedar_ember=1`,
+    /// the answer also lists the limit resets the account holds — the CLI never prints
+    /// those. An expired token or a signed-out folder comes back unavailable; the CLI
+    /// read that follows refreshes the token and tells signed-out apart.
+    private static func fetchClaudeDirectUsage(for source: MonitorSource, cliVersion: String) -> ClaudeDirectRead {
+        guard let token = claudeKeychainToken(for: source) else { return .unavailable }
+        guard let reply = try? ProcessRunner.claudeAPI(
+            path: claudeUsagePath,
+            token: token,
+            userAgent: claudeUserAgent(cliVersion: cliVersion)
+        ) else { return .unavailable }
+        if reply.status == 429 || UsageCLIParser.claudeIsRateLimited(reply.data) {
+            return .rateLimited
+        }
+        guard reply.status == 200,
+              let parsed = try? UsageCLIParser.claudeAPI(reply.data, source: source) else {
+            return .unavailable
+        }
+        return .loaded(parsed.snapshot, resets: parsed.resets, grantID: parsed.grantID)
+    }
+
+    /// One Claude limit reset, sent the way Claude Code's own "Use an available limit
+    /// reset" does: `reset_rate_limits` on the sign-in's organization, naming the grant.
+    /// Without a grant from the last read, the status is read once more first.
+    private static func redeemClaudeReset(
+        for source: MonitorSource,
+        grantID: String?,
+        cliVersion: String
+    ) -> ResetResult {
+        guard let token = claudeKeychainToken(for: source) else {
+            return .failed("Sign in with Claude Code")
+        }
+        let userAgent = claudeUserAgent(cliVersion: cliVersion)
+        do {
+            var grant = grantID
+            if grant == nil {
+                let status = try ProcessRunner.claudeAPI(path: claudeUsagePath, token: token, userAgent: userAgent)
+                guard status.status == 200, !UsageCLIParser.claudeIsRateLimited(status.data) else {
+                    return .failed(status.status == 401 || status.status == 403
+                        ? "Sign in with Claude Code" : "Claude is rate limited, try again shortly")
+                }
+                grant = try UsageCLIParser.claudeAPI(status.data, source: source).grantID
+            }
+            guard let grant else { return .noCredit }
+
+            let profile = try ProcessRunner.claudeAPI(path: "/api/oauth/profile", token: token, userAgent: userAgent)
+            guard profile.status == 200,
+                  let organization = UsageCLIParser.claudeOrganizationID(profile.data) else {
+                return .failed(profile.status == 401 || profile.status == 403
+                    ? "Sign in with Claude Code" : "Claude reset failed")
+            }
+
+            let body = try JSONSerialization.data(withJSONObject: [
+                "program": "cedar_ember",
+                "grant_id": grant,
+                "request_id": UUID().uuidString
+            ])
+            let reply = try ProcessRunner.claudeAPI(
+                path: "/api/organizations/\(organization)/reset_rate_limits",
+                token: token,
+                userAgent: userAgent,
+                body: body
+            )
+            return UsageCLIParser.claudeReset(reply)
+        } catch {
+            return .failed(userFacingMessage(error))
+        }
+    }
+
+    /// The endpoint offers limit resets only to a current Claude Code, so the request
+    /// carries the installed CLI's own client string, followed by uNotch's.
+    static func claudeUserAgent(cliVersion: String) -> String {
+        "claude-cli/\(cliVersion) (external, cli) \(AppInfo.name)/\(AppInfo.version)"
+    }
+
+    /// `claude --version` prints `2.1.280 (Claude Code)`; only the number is wanted.
+    private static func claudeCLIVersion() -> String? {
+        guard let executable = executablePath(for: .claude),
+              let output = try? ProcessRunner.run(executable: executable, arguments: ["--version"], timeout: 8)
+        else { return nil }
+        return UsageCLIParser.claudeVersion(output)
+    }
+
+    /// The OAuth token Claude Code stores in the login keychain: `Claude Code-credentials`
+    /// for the default sign-in, with `-<first 8 hex of SHA-256 of the folder path>` for a
+    /// `CLAUDE_CONFIG_DIR` one. Read into memory for the request and never stored.
+    private static func claudeKeychainToken(for source: MonitorSource) -> String? {
+        guard let data = try? ProcessRunner.run(
+            executable: "/usr/bin/security",
+            arguments: ["find-generic-password", "-s", claudeKeychainService(for: source), "-w"],
+            timeout: 4
+        ),
+        let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        let oauth = object["claudeAiOauth"] as? [String: Any],
+        let token = oauth["accessToken"] as? String else { return nil }
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func claudeKeychainService(for source: MonitorSource) -> String {
+        guard let directory = source.configDirectory else { return "Claude Code-credentials" }
+        let digest = SHA256.hash(data: Data(directory.utf8))
+        let suffix = digest.prefix(4).map { String(format: "%02x", $0) }.joined()
+        return "Claude Code-credentials-\(suffix)"
+    }
+
+    private static func fetchClaudeCLIUsage(for source: MonitorSource) -> UsageSnapshot {
         guard let executable = executablePath(for: .claude) else {
             return .unavailable(source: source, message: "Claude CLI not found")
         }
@@ -539,7 +739,7 @@ enum UsageCLIParser {
         )
     }
 
-    static func codexReset(_ data: Data) throws -> CodexResetResult {
+    static func codexReset(_ data: Data) throws -> ResetResult {
         let decoder = JSONDecoder()
         let response = data
             .split(separator: 0x0A)
@@ -591,6 +791,150 @@ enum UsageCLIParser {
             updatedAt: now,
             state: .loaded
         )
+    }
+
+    /// Claude's usage endpoint: the 5-hour and weekly windows, any model-scoped weekly
+    /// limit, and — when asked with `cedar_ember=1` — the limit resets the account holds.
+    /// The rows match what `/usage` prints. A grant with resets left that is usable now
+    /// puts **Use reset** on the Resets available row; one the account has spent shows
+    /// 0 resets, like Codex.
+    static func claudeAPI(
+        _ data: Data,
+        source: MonitorSource = .claude,
+        now: Date = Date()
+    ) throws -> (snapshot: UsageSnapshot, resets: UsageLimit?, grantID: String?) {
+        guard let root = jsonObject(data) else {
+            throw CLIUsageError("Claude usage returned no plan limits")
+        }
+        var limits: [UsageLimit] = []
+        if let window = root["five_hour"] as? [String: Any], let used = percentValue(window["utilization"]) {
+            limits.append(UsageLimit(
+                label: "5-hour limit",
+                remainingFraction: 1 - used / 100,
+                resetDescription: claudeResetDescription(window["resets_at"])
+            ))
+        }
+        if let window = root["seven_day"] as? [String: Any], let used = percentValue(window["utilization"]) {
+            limits.append(UsageLimit(
+                label: "Weekly limit",
+                remainingFraction: 1 - used / 100,
+                resetDescription: claudeResetDescription(window["resets_at"])
+            ))
+        }
+        for entry in root["limits"] as? [[String: Any]] ?? [] {
+            guard entry["kind"] as? String == "weekly_scoped",
+                  let scope = entry["scope"] as? [String: Any],
+                  let model = scope["model"] as? [String: Any],
+                  let name = model["display_name"] as? String, !name.isEmpty,
+                  let used = percentValue(entry["percent"]),
+                  !limits.contains(where: { $0.label == name }) else { continue }
+            limits.append(UsageLimit(
+                label: name,
+                remainingFraction: 1 - used / 100,
+                resetDescription: claudeResetDescription(entry["resets_at"]),
+                contributesToSummary: false
+            ))
+        }
+        guard !limits.isEmpty else {
+            throw noClaudeLimits
+        }
+
+        var grantID: String?
+        var resetsRow: UsageLimit?
+        if let resets = root["cedar_ember"] as? [String: Any],
+           flag(resets["eligible"]),
+           let grants = resets["grants"] as? [[String: Any]], !grants.isEmpty {
+            func isUsable(_ grant: [String: Any]) -> Bool {
+                guard let id = grant["id"] as? String, !id.isEmpty,
+                      let left = percentValue(grant["resets_left"]), left > 0,
+                      !flag(grant["paused"]), flag(grant["usable_now"]) else { return false }
+                if let ends = date(from: grant["ends_at"]), ends <= now { return false }
+                if let starts = date(from: grant["starts_at"]), starts > now { return false }
+                return !flag(grant["use_requires_limit"]) || flag(resets["at_limit"])
+            }
+            // The claim must name the grant the server would spend next.
+            let next = resets["next_grant_id"] as? String
+            let usable = grants.first { $0["id"] as? String == next && isUsable($0) }
+                ?? grants.first(where: isUsable)
+            grantID = usable?["id"] as? String
+            let count = grants.reduce(0) { $0 + Int(percentValue($1["resets_left"]) ?? 0) }
+            var text = switch count {
+            case 0: "0 resets"
+            case 1: "1 available"
+            default: "\(count) available"
+            }
+            if grantID != nil, let ends = date(from: usable?["ends_at"]) {
+                text += " until \(ends.formatted(.dateTime.month(.abbreviated).day()))"
+            }
+            resetsRow = UsageLimit(
+                label: "Resets available",
+                remainingFraction: grantID == nil ? 0 : 1,
+                valueText: text,
+                showsMeter: false,
+                contributesToSummary: false,
+                canRedeem: grantID != nil
+            )
+        }
+
+        let snapshot = UsageSnapshot(
+            source: source,
+            limits: limits + [resetsRow].compactMap { $0 },
+            updatedAt: now,
+            state: .loaded
+        )
+        return (snapshot, resetsRow, grantID)
+    }
+
+    /// A reset time written the way `claude /usage` prints one — `Resets Sep 22 at
+    /// 7:40pm (America/New_York)` — so a direct read and a CLI read look alike.
+    static func claudeResetDescription(_ value: Any?, timeZone: TimeZone = .current) -> String? {
+        guard let date = date(from: value) else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        var style = Date.FormatStyle(locale: Locale(identifier: "en_US_POSIX"), timeZone: timeZone)
+        let day = date.formatted(style.month(.abbreviated).day())
+        style = calendar.component(.minute, from: date) == 0
+            ? style.hour(.defaultDigits(amPM: .abbreviated))
+            : style.hour(.defaultDigits(amPM: .abbreviated)).minute(.twoDigits)
+        let time = date.formatted(style).filter { !$0.isWhitespace }.lowercased()
+        return "Resets \(day) at \(time) (\(timeZone.identifier))"
+    }
+
+    /// The version number out of `claude --version`.
+    static func claudeVersion(_ data: Data) -> String? {
+        firstMatch(in: String(decoding: data, as: UTF8.self), pattern: #"([0-9]+\.[0-9]+\.[0-9]+)"#)
+    }
+
+    /// The usage endpoint refuses bursts with a JSON `rate_limit_error`, sometimes
+    /// behind a 200. Claude Code treats that body as rate limited too.
+    static func claudeIsRateLimited(_ data: Data) -> Bool {
+        guard let error = jsonObject(data)?["error"] as? [String: Any] else { return false }
+        return error["type"] as? String == "rate_limit_error"
+    }
+
+    static func claudeOrganizationID(_ data: Data) -> String? {
+        guard let organization = jsonObject(data)?["organization"] as? [String: Any],
+              let id = organization["uuid"] as? String, !id.isEmpty else { return nil }
+        return id
+    }
+
+    /// `reset_rate_limits` answers with a `result`; HTTP failures explain themselves.
+    static func claudeReset(_ reply: HTTPReply) -> ResetResult {
+        switch reply.status {
+        case 401, 403: return .failed("Sign in with Claude Code")
+        case 429: return .failed("Claude is rate limited, try again shortly")
+        case 200..<300: break
+        default: return .failed("Claude reset failed")
+        }
+        switch jsonObject(reply.data)?["result"] as? String {
+        case "reset": return .reset
+        case "already_used": return .alreadyRedeemed
+        case "not_limited": return .nothingToReset
+        case "ineligible": return .noCredit
+        case "cooldown": return .failed("Reset is cooling down")
+        case "unavailable": return .failed("Reset unavailable right now")
+        default: return .failed("Claude returned an unknown reset outcome")
+        }
     }
 
     static func cursor(_ data: Data, now: Date = Date()) throws -> UsageSnapshot {
@@ -885,6 +1229,11 @@ private struct CursorStatus: Decodable {
     let isAuthenticated: Bool
 }
 
+struct HTTPReply: Equatable, Sendable {
+    let status: Int
+    let data: Data
+}
+
 struct CLIUsageError: Error, Equatable {
     let message: String
 
@@ -1049,6 +1398,38 @@ enum ProcessRunner {
             throw CLIUsageError("Cursor dashboard usage read failed")
         }
         return data
+    }
+
+    /// One request to Claude's account API with a Claude Code OAuth token. GET without
+    /// a body, POST with one. The status comes back with the body so callers can tell
+    /// an expired token or a rate limit from a real answer.
+    static func claudeAPI(path: String, token: String, userAgent: String, body: Data? = nil) throws -> HTTPReply {
+        guard let url = URL(string: "https://api.anthropic.com\(path)") else {
+            throw CLIUsageError("Claude usage read failed")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = body == nil ? "GET" : "POST"
+        request.httpBody = body
+        request.timeoutInterval = 10
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+
+        let capture = HTTPCapture()
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            capture.finish(data: data, response: response, error: error)
+        }
+        task.resume()
+        guard capture.wait(timeout: 10) else {
+            task.cancel()
+            throw CLIUsageError("Claude usage read timed out")
+        }
+        guard !capture.transportFailed, let http = capture.response as? HTTPURLResponse else {
+            throw CLIUsageError("Claude usage read failed")
+        }
+        return HTTPReply(status: http.statusCode, data: capture.data ?? Data())
     }
 
     static func cursorUsage(executable: String) throws -> Data {

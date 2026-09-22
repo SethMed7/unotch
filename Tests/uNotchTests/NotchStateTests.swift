@@ -117,7 +117,7 @@ final class NotchStateTests: XCTestCase {
                 next.source = source
                 return next
             }
-            func redeemCodexReset(for source: MonitorSource) async -> CodexResetResult {
+            func redeemReset(for source: MonitorSource) async -> ResetResult {
                 redeemCalls += 1
                 snapshot = UsageSnapshot(
                     source: source,
@@ -176,7 +176,7 @@ final class NotchStateTests: XCTestCase {
                 next.source = source
                 return next
             }
-            func redeemCodexReset(for source: MonitorSource) async -> CodexResetResult {
+            func redeemReset(for source: MonitorSource) async -> ResetResult {
                 .nothingToReset
             }
         }
@@ -208,6 +208,121 @@ final class NotchStateTests: XCTestCase {
         let snapshot = try UsageCLIParser.claude(encoded)
         XCTAssertEqual(snapshot.limits[2].remainingPercent, 0)
         XCTAssertEqual(snapshot.remainingPercent, 44, "an empty Fable week does not drive the ring; the weekly limit does")
+    }
+
+    private func claudeAPIResponse(cedarEmber: String) -> Data {
+        Data("""
+        {"five_hour":{"utilization":17,"resets_at":"2026-09-22T23:40:00.720871+00:00"},
+         "seven_day":{"utilization":57,"resets_at":"2026-09-23T15:00:00.720892+00:00"},
+         "seven_day_opus":null,"juniper_tide":null,
+         "cedar_ember":\(cedarEmber),
+         "limits":[
+          {"kind":"session","group":"session","percent":17,"resets_at":"2026-09-22T23:40:00.720871+00:00","scope":null},
+          {"kind":"weekly_all","group":"weekly","percent":57,"resets_at":"2026-09-23T15:00:00.720892+00:00","scope":null},
+          {"kind":"weekly_scoped","group":"weekly","percent":100,"resets_at":"2026-09-23T14:59:59.721052+00:00","scope":{"model":{"id":null,"display_name":"Fable"},"surface":null}}
+         ]}
+        """.utf8)
+    }
+
+    private let claudeGrant = """
+    {"eligible":true,"ineligible_reason":null,"at_limit":true,"exhausted":["seven_day_overage_included"],
+     "grants":[{"id":"opus55-launch-promax-20260921","label":"Claude Opus 5.5 launch","resets_total":1,"resets_left":%d,
+       "starts_at":"2026-09-22T16:00:00+00:00","ends_at":"2026-10-22T16:00:00+00:00",
+       "clears":["five_hour","seven_day","seven_day_overage_included"],"paused":false,"usable_now":%@,
+       "use_requires_limit":false,"percent_used":{"five_hour":17},"blocking":[]}],
+     "next_grant_id":"opus55-launch-promax-20260921","weekly_resets_at":"2026-09-23T15:00:00+00:00","cooldown_until":null}
+    """
+
+    func testClaudeAPIParserMatchesTheCLIRowsAndOffersAGrantedReset() throws {
+        let now = ISO8601DateFormatter().date(from: "2026-09-22T21:00:00Z")!
+        let data = claudeAPIResponse(cedarEmber: String(format: claudeGrant, 1, "true"))
+        let read = try UsageCLIParser.claudeAPI(data, now: now)
+        XCTAssertEqual(read.snapshot.limits.map(\.label), ["5-hour limit", "Weekly limit", "Fable", "Resets available"])
+        XCTAssertEqual(read.snapshot.limits[0].remainingFraction, 0.83, accuracy: 0.000_001)
+        XCTAssertEqual(read.snapshot.limits[1].remainingFraction, 0.43, accuracy: 0.000_001)
+        XCTAssertEqual(
+            read.snapshot.limits[1].resetDescription,
+            UsageCLIParser.claudeResetDescription("2026-09-23T15:00:00.720892+00:00"),
+            "reset times read like the CLI's, in the Mac's time zone"
+        )
+        XCTAssertEqual(read.snapshot.limits[2].remainingPercent, 0)
+        XCTAssertFalse(read.snapshot.limits[2].contributesToSummary)
+        XCTAssertEqual(read.snapshot.remainingPercent, 43, "the ring still follows the weekly limit")
+        XCTAssertTrue(read.snapshot.limits[3].canRedeem)
+        XCTAssertFalse(read.snapshot.limits[3].showsMeter)
+        XCTAssertEqual(read.snapshot.limits[3].valueText, "1 available until Oct 22")
+        XCTAssertEqual(read.resets, read.snapshot.limits[3], "the row is handed back on its own so a CLI read can carry it")
+        XCTAssertEqual(read.grantID, "opus55-launch-promax-20260921")
+    }
+
+    func testClaudeAPIResetTimesReadLikeTheCLI() {
+        let newYork = TimeZone(identifier: "America/New_York")!
+        XCTAssertEqual(
+            UsageCLIParser.claudeResetDescription("2026-09-22T23:40:00.720871+00:00", timeZone: newYork),
+            "Resets Sep 22 at 7:40pm (America/New_York)"
+        )
+        XCTAssertEqual(
+            UsageCLIParser.claudeResetDescription("2026-09-23T15:00:00+00:00", timeZone: newYork),
+            "Resets Sep 23 at 11am (America/New_York)"
+        )
+        XCTAssertNil(UsageCLIParser.claudeResetDescription(nil))
+    }
+
+    func testClaudeVersionIsTheNumberOutOfTheBanner() {
+        XCTAssertEqual(UsageCLIParser.claudeVersion(Data("2.1.280 (Claude Code)\n".utf8)), "2.1.280")
+        XCTAssertNil(UsageCLIParser.claudeVersion(Data("command not found".utf8)))
+        XCTAssertTrue(CLIUsageFetcher.claudeUserAgent(cliVersion: "2.1.280").hasPrefix("claude-cli/2.1.280 (external, cli) uNotch/"))
+    }
+
+    func testClaudeAPIParserShowsZeroResetsOnceTheGrantIsSpent() throws {
+        let data = claudeAPIResponse(cedarEmber: String(format: claudeGrant, 0, "false"))
+        let read = try UsageCLIParser.claudeAPI(data)
+        XCTAssertEqual(read.snapshot.limits.last?.label, "Resets available")
+        XCTAssertEqual(read.snapshot.limits.last?.valueText, "0 resets")
+        XCTAssertFalse(read.snapshot.limits.last?.canRedeem ?? true)
+        XCTAssertNil(read.grantID)
+    }
+
+    func testClaudeAPIParserHidesResetsWithoutAGrantBlock() throws {
+        let read = try UsageCLIParser.claudeAPI(claudeAPIResponse(cedarEmber: "null"))
+        XCTAssertEqual(read.snapshot.limits.map(\.label), ["5-hour limit", "Weekly limit", "Fable"])
+        XCTAssertNil(read.resets)
+        XCTAssertNil(read.grantID)
+
+        let otherSurface = claudeAPIResponse(cedarEmber: #"{"eligible":false,"ineligible_reason":"surface","grants":[],"next_grant_id":null}"#)
+        XCTAssertNil(try UsageCLIParser.claudeAPI(otherSurface).resets)
+    }
+
+    func testClaudeAPIParserRejectsAnErrorEnvelope() {
+        let data = Data(#"{"error":{"type":"rate_limit_error","message":"Rate limited."}}"#.utf8)
+        XCTAssertTrue(UsageCLIParser.claudeIsRateLimited(data))
+        XCTAssertFalse(UsageCLIParser.claudeIsRateLimited(claudeAPIResponse(cedarEmber: "null")))
+        XCTAssertThrowsError(try UsageCLIParser.claudeAPI(data))
+    }
+
+    func testClaudeResetReadsClaimOutcomes() {
+        func reply(_ status: Int, _ body: String) -> HTTPReply { HTTPReply(status: status, data: Data(body.utf8)) }
+        XCTAssertEqual(UsageCLIParser.claudeReset(reply(200, #"{"result":"reset","resets_left":0}"#)), .reset)
+        XCTAssertEqual(UsageCLIParser.claudeReset(reply(200, #"{"result":"already_used"}"#)), .alreadyRedeemed)
+        XCTAssertEqual(UsageCLIParser.claudeReset(reply(200, #"{"result":"not_limited"}"#)), .nothingToReset)
+        XCTAssertEqual(UsageCLIParser.claudeReset(reply(200, #"{"result":"ineligible","reason":"expired"}"#)), .noCredit)
+        XCTAssertEqual(UsageCLIParser.claudeReset(reply(401, "{}")), .failed("Sign in with Claude Code"))
+        XCTAssertEqual(UsageCLIParser.claudeReset(reply(429, "{}")), .failed("Claude is rate limited, try again shortly"))
+        XCTAssertEqual(
+            UsageCLIParser.claudeOrganizationID(Data(#"{"organization":{"uuid":"org-1","name":"x"}}"#.utf8)),
+            "org-1"
+        )
+    }
+
+    func testClaudeKeychainServiceNamesTheConfigFolder() {
+        XCTAssertEqual(CLIUsageFetcher.claudeKeychainService(for: .claude), "Claude Code-credentials")
+        XCTAssertEqual(
+            CLIUsageFetcher.claudeKeychainService(
+                for: MonitorSource(provider: .claude, configDirectory: "/Users/sethmedina/.claude-dev")
+            ),
+            "Claude Code-credentials-5448ff32",
+            "the suffix is the first eight hex digits of SHA-256 over the folder path, as Claude Code names it"
+        )
     }
 
     func testCursorUsageParserReadsIncludedMonthlyUsage() throws {
