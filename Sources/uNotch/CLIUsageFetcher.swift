@@ -72,6 +72,11 @@ actor CLIUsageFetcher: UsageFetching {
     private static let claudeResetsInterval: TimeInterval = 10 * 60
     private static let claudeResetsKeptFor: TimeInterval = 30 * 60
     private static let claudeDirectBackoff: TimeInterval = 5 * 60
+    /// The endpoint opens one slot per account every minute or two, and a refused
+    /// call costs nothing, so a due read tries every `claudeDirectRetryDelay` until it
+    /// lands or `claudeDirectAttempts` are spent.
+    private static let claudeDirectAttempts = 8
+    private static let claudeDirectRetryDelay: TimeInterval = 20
 
     func fetchUsage(for source: MonitorSource) async -> UsageSnapshot {
         if source.provider == .claude {
@@ -119,16 +124,25 @@ actor CLIUsageFetcher: UsageFetching {
         let backedOff = (claudeDirectBackoffUntil[source] ?? .distantPast) > now
 
         if due, !backedOff, let version = await claudeVersion() {
-            let direct = await Task.detached(priority: .utility) {
-                Self.fetchClaudeDirectUsage(for: source, cliVersion: version)
-            }.value
-            if case .loaded(let snapshot, let limit, let grantID) = direct {
-                claudeResets[source] = ClaudeResets(limit: limit, grantID: grantID, readAt: now)
-                return snapshot
+            // Live Claude Code sessions and Claude Desktop share this account's slots,
+            // so the first try is often refused. Keep trying on a short cadence;
+            // nothing else of ours asks for this sign-in meanwhile.
+            for attempt in 0..<Self.claudeDirectAttempts {
+                if attempt > 0 {
+                    try? await Task.sleep(for: .seconds(Self.claudeDirectRetryDelay))
+                }
+                let direct = await Task.detached(priority: .utility) {
+                    Self.fetchClaudeDirectUsage(for: source, cliVersion: version)
+                }.value
+                if case .loaded(let snapshot, let limit, let grantID) = direct {
+                    claudeResets[source] = ClaudeResets(limit: limit, grantID: grantID, readAt: Date())
+                    return snapshot
+                }
+                guard case .rateLimited = direct else { break }
             }
-            // Rate limited, or a token the CLI still has to refresh: leave the endpoint
-            // alone for a while rather than asking twice a minute.
-            claudeDirectBackoffUntil[source] = now.addingTimeInterval(Self.claudeDirectBackoff)
+            // Still rate limited, or a token the CLI has to refresh first: leave the
+            // endpoint alone for a while rather than asking again every minute.
+            claudeDirectBackoffUntil[source] = Date().addingTimeInterval(Self.claudeDirectBackoff)
         }
 
         var snapshot = await Task.detached(priority: .utility) {

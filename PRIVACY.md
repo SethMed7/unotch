@@ -96,7 +96,9 @@ uNotch makes three kinds of network request, all over HTTPS:
 - **Claude usage and resets**, every ten minutes per Claude sign-in and after
   you use a reset. uNotch gets `/api/oauth/usage` on `api.anthropic.com` with
   the keychain OAuth token as a bearer; it reports plan usage and granted
-  resets and does not run models. Clicking **Use reset** adds one get of
+  resets and does not run models. The endpoint admits about one call a minute
+  per account, so a refused read is retried every 20 seconds for up to about
+  two and a half minutes. Clicking **Use reset** adds one get of
   `/api/oauth/profile` and one post of `reset_rate_limits` for that
   organization. Responses are parsed in memory for percentages, reset times,
   the resets count, and the grant id; the organization id is used for that
