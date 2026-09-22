@@ -613,8 +613,12 @@ final class NotchStateTests: XCTestCase {
             HUDMetrics.usageCalloutHeight(forLimitCount: 2, showsRedeemAction: true),
             HUDMetrics.usageCalloutTallHeight + 10
         )
-        XCTAssertEqual(HUDMetrics.usageCalloutMaxHeight, 270)
+        // Claude with a reset: 5-hour, weekly, Fable, and Resets available, plus the strip.
+        XCTAssertEqual(HUDMetrics.usageCalloutHeight(forLimitCount: 4), 252)
+        XCTAssertEqual(HUDMetrics.usageCalloutHeight(forLimitCount: 4, subscriptionCount: 2, showsRedeemAction: true), 310)
+        XCTAssertEqual(HUDMetrics.usageCalloutMaxHeight, 310)
         XCTAssertGreaterThan(HUDMetrics.usageCalloutMaxHeight, HUDMetrics.railHeight(providerCount: 3))
+        XCTAssertLessThanOrEqual(HUDMetrics.usageCalloutMaxHeight, HUDMetrics.railHeight(providerCount: 4))
     }
 
     func testHoverRowsFollowTheInstalledProviders() {

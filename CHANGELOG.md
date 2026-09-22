@@ -6,6 +6,14 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.8.2] — 2026-09-22
+
+### Fixed
+- **Claude's callout no longer clips its title when a reset is shown.** Four
+  rows — 5-hour, weekly, Fable, and Resets available — under a subscription
+  strip were taller than the callout allowed for, so the header ran off the
+  top. The callout now sizes per row, and the panel is sized for that case.
+
 ## [1.8.1] — 2026-09-22
 
 ### Fixed
@@ -250,7 +258,8 @@ it has no extra subscriptions to find; its sign-in check is unchanged.
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.8.1...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.8.2...HEAD
+[1.8.2]: https://github.com/SethMed7/unotch/compare/v1.8.1...v1.8.2
 [1.8.1]: https://github.com/SethMed7/unotch/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/SethMed7/unotch/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/SethMed7/unotch/compare/v1.6.0...v1.7.0

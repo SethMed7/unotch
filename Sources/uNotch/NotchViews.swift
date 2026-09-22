@@ -10,8 +10,13 @@ enum HUDMetrics {
     static let railFooterHeight: CGFloat = 42
     static let calloutWidth: CGFloat = 292
     static let usageCalloutHeight: CGFloat = 132
+    /// Each limit row after the first: its meter, caption, and the gap above it.
+    static let usageLimitRowHeight: CGFloat = 40
     static let usageCalloutTallHeight: CGFloat = 172
     static let usageCalloutTripleHeight: CGFloat = 212
+    /// The most rows one provider shows: Claude's 5-hour, weekly, and model limits
+    /// plus its Resets available row.
+    static let usageLimitMaxCount = 4
     /// The subscription strip (34 pt of cells in a 2 pt well) plus the space above it.
     static let subscriptionStripHeight: CGFloat = 38
     static let subscriptionStripSpacing: CGFloat = 10
@@ -81,28 +86,29 @@ enum HUDMetrics {
             + railFooterHeight
     }
 
-    /// A provider with more than one signed-in subscription gets the strip under the
-    /// title, so its callout is taller by the strip's row. A Codex row with a Use reset
-    /// control needs a little more for the taller action chip.
+    /// One row's worth per limit. A provider with more than one signed-in subscription
+    /// gets the strip under the title, so its callout is taller by the strip's row. A
+    /// Resets available row with a Use reset control needs a little more for the
+    /// taller action chip.
     static func usageCalloutHeight(
         forLimitCount count: Int,
         subscriptionCount: Int = 1,
         showsRedeemAction: Bool = false
     ) -> CGFloat {
-        let base: CGFloat = switch max(count, 1) {
-        case 1: usageCalloutHeight
-        case 2: usageCalloutTallHeight
-        default: usageCalloutTripleHeight
-        }
+        let base = usageCalloutHeight + CGFloat(max(count, 1) - 1) * usageLimitRowHeight
         let strip = subscriptionCount > 1 ? subscriptionStripHeight + subscriptionStripSpacing : 0
         let redeem: CGFloat = showsRedeemAction ? 10 : 0
         return base + strip + redeem
     }
 
-    /// The tallest usage callout: three limits under a subscription strip, with room for
-    /// a Codex Use reset control.
+    /// The tallest usage callout: every row Claude can show under a subscription strip,
+    /// with room for a Use reset control.
     static var usageCalloutMaxHeight: CGFloat {
-        usageCalloutHeight(forLimitCount: 3, subscriptionCount: 2, showsRedeemAction: true)
+        usageCalloutHeight(
+            forLimitCount: usageLimitMaxCount,
+            subscriptionCount: 2,
+            showsRedeemAction: true
+        )
     }
 
     /// The panel must hold the rail and the tallest callout, whichever is taller. It is

@@ -39,6 +39,47 @@ final class RenderTests: XCTestCase {
         try writeSnapshotIfRequested(image, variable: "UNOTCH_MULTI_SNAPSHOT")
     }
 
+    /// Claude's tallest callout — 5-hour, weekly, Fable, and Resets available with Use
+    /// reset, under a two-subscription strip — fits the panel on a three-ring rail.
+    func testClaudeWithAResetFitsTheThreeRingPanel() async throws {
+        let dev = MonitorSource(provider: .claude, configDirectory: "/Users/someone/.claude-dev")
+        let limits = ["5-hour limit", "Weekly limit", "Fable"].map {
+            UsageLimit(label: $0, remainingFraction: 0.86, resetDescription: "Resets Sep 25 at 10:59am (America/New_York)")
+        } + [
+            UsageLimit(
+                label: "Resets available",
+                remainingFraction: 1,
+                valueText: "1 available until Oct 22",
+                showsMeter: false,
+                contributesToSummary: false,
+                canRedeem: true
+            )
+        ]
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.claude, dev, .codex, .cursor],
+            snapshots: [
+                .claude: StubFetcher.loaded(.claude, remaining: 0.42),
+                dev: UsageSnapshot(source: dev, limits: limits, updatedAt: Date(), state: .loaded)
+            ]
+        ))
+        monitor.refreshAll()
+        for _ in 0..<200 where monitor.subscriptions(for: .claude).count < 2 {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        monitor.select(subscription: dev)
+        XCTAssertTrue(monitor.canRedeemAvailableReset)
+        XCTAssertEqual(
+            HUDMetrics.usageCalloutHeight(forLimitCount: 4, subscriptionCount: 2, showsRedeemAction: true),
+            HUDMetrics.usageCalloutMaxHeight
+        )
+
+        let size = HUDMetrics.expandedSize(providerCount: 3)
+        let image = try render(monitor: monitor, settingsOpen: false)
+        XCTAssertEqual(image.width, Int(size.width) * 2)
+        XCTAssertEqual(image.height, Int(size.height) * 2)
+        try writeSnapshotIfRequested(image, variable: "UNOTCH_RESET_SNAPSHOT")
+    }
+
     /// Five subscriptions share one strip row; the callout is the same height it is
     /// for two, and nothing runs past the panel.
     func testFiveSubscriptionsShareOneStripRow() async throws {
