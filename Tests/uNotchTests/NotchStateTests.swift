@@ -40,6 +40,7 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(snapshot.limits[1].valueText, "1 available")
         XCTAssertFalse(snapshot.limits[1].showsMeter)
         XCTAssertFalse(snapshot.limits[1].contributesToSummary)
+        XCTAssertTrue(snapshot.limits[1].canRedeem)
         XCTAssertEqual(snapshot.remainingPercent, 38)
     }
 
@@ -49,6 +50,142 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(snapshot.limits.map(\.label), ["Weekly limit", "Resets available"])
         XCTAssertEqual(snapshot.limits[1].valueText, "0 resets")
         XCTAssertFalse(snapshot.limits[1].showsMeter)
+        XCTAssertFalse(snapshot.limits[1].canRedeem)
+    }
+
+    func testCodexResetParserReadsConsumeOutcomes() throws {
+        XCTAssertEqual(
+            try UsageCLIParser.codexReset(Data(#"{"id":2,"result":{"outcome":"reset"}}"#.utf8)),
+            .reset
+        )
+        XCTAssertEqual(
+            try UsageCLIParser.codexReset(Data(#"{"id":2,"result":{"outcome":"nothingToReset"}}"#.utf8)),
+            .nothingToReset
+        )
+        XCTAssertEqual(
+            try UsageCLIParser.codexReset(Data(#"{"id":2,"result":{"outcome":"noCredit"}}"#.utf8)),
+            .noCredit
+        )
+        XCTAssertEqual(
+            try UsageCLIParser.codexReset(Data(#"{"id":2,"result":{"outcome":"alreadyRedeemed"}}"#.utf8)),
+            .alreadyRedeemed
+        )
+        XCTAssertThrowsError(
+            try UsageCLIParser.codexReset(Data(#"{"id":2,"error":{"message":"not signed in"}}"#.utf8))
+        )
+    }
+
+    func testRedeemAvailableResetSpendsACreditAndRefreshes() async {
+        let loaded = UsageSnapshot(
+            source: .codex,
+            limits: [
+                UsageLimit(label: "Weekly limit", remainingFraction: 0),
+                UsageLimit(
+                    label: "Resets available",
+                    remainingFraction: 1,
+                    valueText: "1 available",
+                    showsMeter: false,
+                    contributesToSummary: false,
+                    canRedeem: true
+                )
+            ],
+            updatedAt: Date(),
+            state: .loaded
+        )
+        let after = UsageSnapshot(
+            source: .codex,
+            limits: [
+                UsageLimit(label: "Weekly limit", remainingFraction: 1),
+                UsageLimit(
+                    label: "Resets available",
+                    remainingFraction: 0,
+                    valueText: "0 resets",
+                    showsMeter: false,
+                    contributesToSummary: false
+                )
+            ],
+            updatedAt: Date(),
+            state: .loaded
+        )
+        final class ResetFetcher: UsageFetching, @unchecked Sendable {
+            var snapshot: UsageSnapshot
+            var redeemCalls = 0
+            init(snapshot: UsageSnapshot) { self.snapshot = snapshot }
+            func installedSources() -> [MonitorSource] { [.codex] }
+            func fetchUsage(for source: MonitorSource) async -> UsageSnapshot {
+                var next = snapshot
+                next.source = source
+                return next
+            }
+            func redeemCodexReset(for source: MonitorSource) async -> CodexResetResult {
+                redeemCalls += 1
+                snapshot = UsageSnapshot(
+                    source: source,
+                    limits: [
+                        UsageLimit(label: "Weekly limit", remainingFraction: 1),
+                        UsageLimit(
+                            label: "Resets available",
+                            remainingFraction: 0,
+                            valueText: "0 resets",
+                            showsMeter: false,
+                            contributesToSummary: false
+                        )
+                    ],
+                    updatedAt: Date(),
+                    state: .loaded
+                )
+                return .reset
+            }
+        }
+        let fetcher = ResetFetcher(snapshot: loaded)
+        let monitor = UsageMonitor(fetcher: fetcher)
+        monitor.refreshAll()
+        await settle { monitor.snapshot.state == .loaded }
+        XCTAssertTrue(monitor.canRedeemAvailableReset)
+
+        monitor.redeemAvailableReset()
+        await settle { fetcher.redeemCalls == 1 && monitor.snapshot.remainingPercent == 100 }
+        XCTAssertEqual(fetcher.redeemCalls, 1)
+        XCTAssertFalse(monitor.canRedeemAvailableReset)
+        XCTAssertEqual(monitor.snapshot.limits, after.limits)
+        XCTAssertNil(monitor.resetStatusMessage)
+    }
+
+    func testRedeemAvailableResetSurfacesNothingToReset() async {
+        let loaded = UsageSnapshot(
+            source: .codex,
+            limits: [
+                UsageLimit(
+                    label: "Resets available",
+                    remainingFraction: 1,
+                    valueText: "1 available",
+                    showsMeter: false,
+                    contributesToSummary: false,
+                    canRedeem: true
+                )
+            ],
+            updatedAt: Date(),
+            state: .loaded
+        )
+        final class SoftResetFetcher: UsageFetching, @unchecked Sendable {
+            var snapshot: UsageSnapshot
+            init(snapshot: UsageSnapshot) { self.snapshot = snapshot }
+            func installedSources() -> [MonitorSource] { [.codex] }
+            func fetchUsage(for source: MonitorSource) async -> UsageSnapshot {
+                var next = snapshot
+                next.source = source
+                return next
+            }
+            func redeemCodexReset(for source: MonitorSource) async -> CodexResetResult {
+                .nothingToReset
+            }
+        }
+        let monitor = UsageMonitor(fetcher: SoftResetFetcher(snapshot: loaded))
+        monitor.refreshAll()
+        await settle { monitor.canRedeemAvailableReset }
+        monitor.redeemAvailableReset()
+        await settle { monitor.resetStatusMessage != nil }
+        XCTAssertEqual(monitor.resetStatusMessage, "Nothing to reset")
     }
 
     func testClaudeUsageParserReadsAllModelsWeeklyLimit() throws {
@@ -357,7 +494,11 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(HUDMetrics.usageCalloutHeight(forLimitCount: 3, subscriptionCount: 2), 260)
         XCTAssertEqual(HUDMetrics.usageCalloutHeight(forLimitCount: 3, subscriptionCount: 5), 260)
         XCTAssertEqual(HUDMetrics.usageCalloutHeight(forLimitCount: 1, subscriptionCount: 5), 180)
-        XCTAssertEqual(HUDMetrics.usageCalloutMaxHeight, 260)
+        XCTAssertEqual(
+            HUDMetrics.usageCalloutHeight(forLimitCount: 2, showsRedeemAction: true),
+            HUDMetrics.usageCalloutTallHeight + 10
+        )
+        XCTAssertEqual(HUDMetrics.usageCalloutMaxHeight, 270)
         XCTAssertGreaterThan(HUDMetrics.usageCalloutMaxHeight, HUDMetrics.railHeight(providerCount: 3))
     }
 

@@ -121,6 +121,8 @@ struct UsageLimit: Equatable, Identifiable, Sendable {
     let valueText: String?
     let showsMeter: Bool
     let contributesToSummary: Bool
+    /// When true, the HUD offers a control that spends one banked Codex reset.
+    let canRedeem: Bool
 
     var id: String { label }
 
@@ -131,7 +133,8 @@ struct UsageLimit: Equatable, Identifiable, Sendable {
         resetDescription: String? = nil,
         valueText: String? = nil,
         showsMeter: Bool = true,
-        contributesToSummary: Bool = true
+        contributesToSummary: Bool = true,
+        canRedeem: Bool = false
     ) {
         self.label = label
         self.remainingFraction = min(max(remainingFraction, 0), 1)
@@ -140,6 +143,7 @@ struct UsageLimit: Equatable, Identifiable, Sendable {
         self.valueText = valueText
         self.showsMeter = showsMeter
         self.contributesToSummary = contributesToSummary
+        self.canRedeem = canRedeem
     }
 
     var remainingPercent: Int {
@@ -224,6 +228,11 @@ final class UsageMonitor: ObservableObject {
     /// Low subscriptions the user has already opened the HUD to see. A subscription
     /// leaves this set when it climbs back above 10%, so the next drop can alert again.
     @Published private var seenLow: Set<MonitorSource> = []
+    /// True while a Codex reset credit is being spent for the selected subscription.
+    @Published private(set) var isRedeemingReset = false
+    /// Short note after a reset attempt that did not clear usage, cleared on the next
+    /// successful refresh or another redeem.
+    @Published private(set) var resetStatusMessage: String?
     /// True while the HUD is open. Lows that appear then are already in view, so they
     /// do not light the idle cue after it closes.
     var isLooking = false {
@@ -242,6 +251,7 @@ final class UsageMonitor: ObservableObject {
     private let defaults: UserDefaults
     private var timer: Timer?
     private var refreshTasks: [MonitorSource: Task<Void, Never>] = [:]
+    private var redeemTask: Task<Void, Never>?
 
     private static let favoritesDefaultsKey = "uNotch.favoriteSubscriptions"
 
@@ -262,6 +272,7 @@ final class UsageMonitor: ObservableObject {
     deinit {
         timer?.invalidate()
         refreshTasks.values.forEach { $0.cancel() }
+        redeemTask?.cancel()
     }
 
     /// Usage for the subscription selected in the pop-out of the selected provider.
@@ -351,7 +362,9 @@ final class UsageMonitor: ObservableObject {
     }
 
     func select(_ provider: Provider) {
-        if selectedProvider != provider { selectedProvider = provider }
+        guard selectedProvider != provider else { return }
+        selectedProvider = provider
+        resetStatusMessage = nil
     }
 
     func select(subscription source: MonitorSource) {
@@ -360,12 +373,44 @@ final class UsageMonitor: ObservableObject {
     }
 
     func refresh() {
+        resetStatusMessage = nil
         requestRefresh(for: selectedProvider, force: true)
     }
 
     func refresh(_ provider: Provider) {
         select(provider)
         requestRefresh(for: provider, force: false)
+    }
+
+    /// True when the selected Codex subscription has at least one banked reset credit.
+    var canRedeemAvailableReset: Bool {
+        snapshot.limits.contains(where: \.canRedeem)
+    }
+
+    /// Spends one banked Codex reset for the selected subscription, then re-reads usage.
+    func redeemAvailableReset() {
+        let source = selectedSource(for: selectedProvider)
+        guard source.provider == .codex,
+              canRedeemAvailableReset,
+              !isRedeemingReset,
+              redeemTask == nil else { return }
+
+        isRedeemingReset = true
+        resetStatusMessage = nil
+        redeemTask = Task { [weak self, fetcher] in
+            let result = await fetcher.redeemCodexReset(for: source)
+            guard !Task.isCancelled, let self else { return }
+            self.isRedeemingReset = false
+            self.redeemTask = nil
+            if let message = result.statusMessage {
+                self.resetStatusMessage = message
+            }
+            // Always re-read after a conclusive reply so the count and meters match
+            // the account, including "nothing to reset" / "no credit".
+            if result != .unsupported {
+                self.requestRefresh(for: source, force: true)
+            }
+        }
     }
 
     func cycleProvider() {

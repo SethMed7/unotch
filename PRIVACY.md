@@ -13,6 +13,10 @@ output:
   limits, uNotch also runs `claude auth status` and uses only its signed-in flag.
 - Codex: available account rate-limit windows and banked reset counts. When a
   read fails, uNotch also runs `codex login status` and uses only its exit code.
+  **Use reset** (only when you click it) sends
+  `account/rateLimitResetCredit/consume` through the same local Codex
+  app-server path; it spends one banked credit on that sign-in and does not
+  send prompts or project data.
 - Additional Claude Code and Codex sign-ins: uNotch lists the names in your home
   folder and in `~/.config`, and checks whether each folder there contains the
   files that CLI leaves in its home (`.claude.json` for Claude Code; `auth.json`

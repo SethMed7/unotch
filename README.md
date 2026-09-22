@@ -31,7 +31,7 @@ dashboard window and no Dock icon.
 | Provider | Local source | Usage shown |
 | --- | --- | --- |
 | Claude | Claude Code CLI `/usage` | 5-hour, weekly, and Fable limits |
-| Codex | Codex app-server rate limits | Plan windows, plus banked resets when any remain |
+| Codex | Codex app-server rate limits | Plan windows, plus banked resets when any remain (Use reset spends one) |
 | Cursor | Cursor dashboard usage RPCs (Agent `/usage` fallback) | Cursor Models and Other Models |
 | Grok Bot | Cursor dashboard usage RPCs, through the Cursor sign-in | Grok Bot's own allowance |
 
@@ -92,6 +92,8 @@ The installer supports Apple silicon Macs running macOS 14 Sonoma or newer.
   ring follows the lower of the 5-hour window and the weekly limit. Providers without an installed CLI are not shown; install one and its
   ring appears within a minute.
 - Use the refresh control for an immediate read from the selected local CLI.
+- On Codex, when **Resets available** shows a count above zero, **Use reset**
+  spends one banked credit through the local Codex CLI and refreshes usage.
 - Drag the rail vertically or across the display to place it on either edge.
 - Hover the settings gear at the bottom of the rail. The section hangs from the
   gear so you can move into it, and it holds everything uNotch can be told:

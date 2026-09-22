@@ -5,6 +5,42 @@ protocol UsageFetching: Sendable {
     /// Subscriptions whose local CLI is present on this Mac, including extra sign-ins
     /// of the same CLI. Cheap file checks; safe to call often.
     func installedSources() -> [MonitorSource]
+    /// Spends one banked Codex reset credit for this sign-in. Other providers return
+    /// `.unsupported`. Callers refresh usage after a conclusive outcome.
+    func redeemCodexReset(for source: MonitorSource) async -> CodexResetResult
+}
+
+extension UsageFetching {
+    func redeemCodexReset(for source: MonitorSource) async -> CodexResetResult {
+        .unsupported
+    }
+}
+
+/// What Codex's `account/rateLimitResetCredit/consume` reported, or why it could not.
+enum CodexResetResult: Equatable, Sendable {
+    case reset
+    case nothingToReset
+    case noCredit
+    case alreadyRedeemed
+    case failed(String)
+    case unsupported
+
+    var didConsume: Bool {
+        switch self {
+        case .reset, .alreadyRedeemed: true
+        default: false
+        }
+    }
+
+    var statusMessage: String? {
+        switch self {
+        case .reset, .alreadyRedeemed: nil
+        case .nothingToReset: "Nothing to reset"
+        case .noCredit: "No resets available"
+        case .failed(let message): message
+        case .unsupported: "Reset is only available for Codex"
+        }
+    }
 }
 
 actor CLIUsageFetcher: UsageFetching {
@@ -20,6 +56,13 @@ actor CLIUsageFetcher: UsageFetching {
             case .grokBot:
                 return Self.fetchGrokBotUsage(for: source)
             }
+        }.value
+    }
+
+    func redeemCodexReset(for source: MonitorSource) async -> CodexResetResult {
+        guard source.provider == .codex else { return .unsupported }
+        return await Task.detached(priority: .utility) {
+            Self.redeemCodexReset(for: source)
         }.value
     }
 
@@ -138,8 +181,10 @@ actor CLIUsageFetcher: UsageFetching {
 
         let environment = source.configDirectory.map { ["CODEX_HOME": $0] } ?? [:]
         do {
-            let output = try ProcessRunner.codexRateLimits(
+            let output = try ProcessRunner.codexAppServer(
                 executable: executable,
+                method: "account/rateLimits/read",
+                paramsJSON: "null",
                 additionalEnvironment: environment
             )
             return try UsageCLIParser.codex(output, source: source)
@@ -155,6 +200,26 @@ actor CLIUsageFetcher: UsageFetching {
                 return .unavailable(source: source, message: "Sign in with Codex CLI")
             }
             return .failed(source: source, message: userFacingMessage(error))
+        }
+    }
+
+    private static func redeemCodexReset(for source: MonitorSource) -> CodexResetResult {
+        guard let executable = executablePath(for: .codex) else {
+            return .failed("Codex CLI not found")
+        }
+
+        let environment = source.configDirectory.map { ["CODEX_HOME": $0] } ?? [:]
+        let key = UUID().uuidString
+        do {
+            let output = try ProcessRunner.codexAppServer(
+                executable: executable,
+                method: "account/rateLimitResetCredit/consume",
+                paramsJSON: #"{"idempotencyKey":"\#(key)"}"#,
+                additionalEnvironment: environment
+            )
+            return try UsageCLIParser.codexReset(output)
+        } catch {
+            return .failed(userFacingMessage(error))
         }
     }
 
@@ -460,7 +525,8 @@ enum UsageCLIParser {
                     remainingFraction: count > 0 ? 1 : 0,
                     valueText: text,
                     showsMeter: false,
-                    contributesToSummary: false
+                    contributesToSummary: false,
+                    canRedeem: count > 0
                 )
             )
         }
@@ -471,6 +537,27 @@ enum UsageCLIParser {
             updatedAt: now,
             state: .loaded
         )
+    }
+
+    static func codexReset(_ data: Data) throws -> CodexResetResult {
+        let decoder = JSONDecoder()
+        let response = data
+            .split(separator: 0x0A)
+            .compactMap { try? decoder.decode(CodexConsumeResponse.self, from: Data($0)) }
+            .first { $0.id == 2 }
+        if let message = response?.error?.message, !message.isEmpty {
+            throw CLIUsageError(message)
+        }
+        guard let outcome = response?.result?.outcome else {
+            throw CLIUsageError("Codex CLI returned no reset outcome")
+        }
+        switch outcome {
+        case "reset": return .reset
+        case "nothingToReset": return .nothingToReset
+        case "noCredit": return .noCredit
+        case "alreadyRedeemed": return .alreadyRedeemed
+        default: throw CLIUsageError("Codex CLI returned an unknown reset outcome")
+        }
     }
 
     static func claude(
@@ -751,6 +838,20 @@ private struct CodexResponse: Decodable {
     let result: CodexRateLimitResult?
 }
 
+private struct CodexConsumeResponse: Decodable {
+    let id: Int?
+    let result: CodexConsumeResult?
+    let error: CodexRPCError?
+}
+
+private struct CodexConsumeResult: Decodable {
+    let outcome: String?
+}
+
+private struct CodexRPCError: Decodable {
+    let message: String?
+}
+
 private struct CodexRateLimitResult: Decodable {
     let rateLimits: CodexRateLimits
     let rateLimitsByLimitId: [String: CodexRateLimits]?
@@ -861,8 +962,10 @@ enum ProcessRunner {
         return (stdout, process.terminationStatus)
     }
 
-    static func codexRateLimits(
+    static func codexAppServer(
         executable: String,
+        method: String,
+        paramsJSON: String,
         additionalEnvironment: [String: String] = [:]
     ) throws -> Data {
         let process = Process()
@@ -893,7 +996,7 @@ enum ProcessRunner {
         let requests = [
             #"{"id":1,"method":"initialize","params":{"clientInfo":{"name":"unotch","title":"uNotch","version":"\#(AppInfo.version)"}}}"#,
             #"{"method":"initialized"}"#,
-            #"{"id":2,"method":"account/rateLimits/read","params":null}"#
+            #"{"id":2,"method":"\#(method)","params":\#(paramsJSON)}"#
         ].joined(separator: "\n") + "\n"
         input.fileHandleForWriting.write(Data(requests.utf8))
 
@@ -901,7 +1004,7 @@ enum ProcessRunner {
             output.fileHandleForReading.readabilityHandler = nil
             input.fileHandleForWriting.closeFile()
             process.terminate()
-            throw CLIUsageError("Codex CLI usage read timed out")
+            throw CLIUsageError("Codex CLI timed out")
         }
 
         output.fileHandleForReading.readabilityHandler = nil

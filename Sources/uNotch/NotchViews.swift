@@ -82,20 +82,27 @@ enum HUDMetrics {
     }
 
     /// A provider with more than one signed-in subscription gets the strip under the
-    /// title, so its callout is taller by the strip's row.
-    static func usageCalloutHeight(forLimitCount count: Int, subscriptionCount: Int = 1) -> CGFloat {
+    /// title, so its callout is taller by the strip's row. A Codex row with a Use reset
+    /// control needs a little more for the taller action chip.
+    static func usageCalloutHeight(
+        forLimitCount count: Int,
+        subscriptionCount: Int = 1,
+        showsRedeemAction: Bool = false
+    ) -> CGFloat {
         let base: CGFloat = switch max(count, 1) {
         case 1: usageCalloutHeight
         case 2: usageCalloutTallHeight
         default: usageCalloutTripleHeight
         }
         let strip = subscriptionCount > 1 ? subscriptionStripHeight + subscriptionStripSpacing : 0
-        return base + strip
+        let redeem: CGFloat = showsRedeemAction ? 10 : 0
+        return base + strip + redeem
     }
 
-    /// The tallest usage callout: three limits under a subscription strip.
+    /// The tallest usage callout: three limits under a subscription strip, with room for
+    /// a Codex Use reset control.
     static var usageCalloutMaxHeight: CGFloat {
-        usageCalloutHeight(forLimitCount: 3, subscriptionCount: 2)
+        usageCalloutHeight(forLimitCount: 3, subscriptionCount: 2, showsRedeemAction: true)
     }
 
     /// The panel must hold the rail and the tallest callout, whichever is taller. It is
@@ -344,7 +351,8 @@ private struct ExpandedNotchView: View {
         if state.isSettingsOpen { return HUDMetrics.settingsCalloutHeight }
         return HUDMetrics.usageCalloutHeight(
             forLimitCount: monitor.snapshot.limits.count,
-            subscriptionCount: monitor.subscriptions(for: monitor.selectedProvider).count
+            subscriptionCount: monitor.subscriptions(for: monitor.selectedProvider).count,
+            showsRedeemAction: monitor.canRedeemAvailableReset || monitor.isRedeemingReset
         )
     }
 
@@ -500,7 +508,13 @@ private struct UsageFlyoutView: View {
         } else {
             VStack(alignment: .leading, spacing: 11) {
                 ForEach(monitor.snapshot.limits) { limit in
-                    UsageLimitRow(limit: limit)
+                    UsageLimitRow(
+                        limit: limit,
+                        isRedeeming: monitor.isRedeemingReset,
+                        onRedeem: limit.canRedeem
+                            ? { monitor.redeemAvailableReset() }
+                            : nil
+                    )
                 }
             }
         }
@@ -515,6 +529,8 @@ private struct UsageFlyoutView: View {
     }
 
     private var headerDetail: String {
+        if monitor.isRedeemingReset { return "Using reset…" }
+        if let message = monitor.resetStatusMessage { return message }
         if let message = monitor.snapshot.statusMessage { return message }
         if monitor.snapshot.state == .refreshing {
             return monitor.snapshot.updatedAt == nil ? "Reading local CLI…" : "Refreshing from CLI…"
@@ -626,6 +642,8 @@ private struct SubscriptionCell: View {
 
 private struct UsageLimitRow: View {
     let limit: UsageLimit
+    var isRedeeming: Bool = false
+    var onRedeem: (() -> Void)? = nil
 
     private var isLow: Bool {
         limit.showsMeter && HUDMetrics.isLowRemaining(limit.remainingFraction)
@@ -638,10 +656,14 @@ private struct UsageLimitRow: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Brand.ink2)
                 Spacer()
-                Text(limit.valueText ?? "\(limit.remainingPercent)% remaining")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(isLow ? Brand.alert : Brand.ink)
+                if let onRedeem {
+                    RedeemResetButton(isBusy: isRedeeming, action: onRedeem)
+                } else {
+                    Text(limit.valueText ?? "\(limit.remainingPercent)% remaining")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(isLow ? Brand.alert : Brand.ink)
+                }
             }
 
             if limit.showsMeter {
@@ -657,13 +679,45 @@ private struct UsageLimitRow: View {
                 .frame(height: 6)
             }
 
-            if let resetText = limit.resetText {
+            if let valueText = limit.valueText, onRedeem != nil {
+                Text(valueText)
+                    .font(.system(size: 8.5, weight: .medium))
+                    .foregroundStyle(Brand.ink3)
+                    .lineLimit(1)
+            } else if let resetText = limit.resetText {
                 Text(resetText)
                     .font(.system(size: 8.5, weight: .medium))
                     .foregroundStyle(Brand.ink3)
                     .lineLimit(1)
             }
         }
+    }
+}
+
+private struct RedeemResetButton: View {
+    let isBusy: Bool
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(isBusy ? "Using…" : "Use reset")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Brand.charcoal)
+                .padding(.horizontal, 9)
+                .frame(height: 22)
+                .background(
+                    isBusy ? Brand.mint.opacity(0.6) : (isHovering ? Brand.paper : Brand.mint),
+                    in: RoundedRectangle(cornerRadius: Brand.Radius.control, style: .continuous)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isBusy)
+        .help("Spend one banked Codex reset on this plan")
+        .accessibilityLabel(isBusy ? "Using reset" : "Use reset")
+        .onHoverAlways { isHovering = $0 }
+        .animation(Brand.fade, value: isHovering)
     }
 }
 
