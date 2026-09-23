@@ -6,7 +6,7 @@ import XCTest
 @MainActor
 final class RenderTests: XCTestCase {
     func testExpandedHUDRendersAtExpectedSize() throws {
-        let size = HUDMetrics.expandedSize(providerCount: 3)
+        let size = HUDMetrics.expandedSize(providerCount: MonitorSource.defaults.count)
         let image = try render(installed: MonitorSource.defaults, settingsOpen: false)
         XCTAssertEqual(image.width, Int(size.width) * 2)
         XCTAssertEqual(image.height, Int(size.height) * 2)
@@ -14,7 +14,7 @@ final class RenderTests: XCTestCase {
     }
 
     func testSettingsSectionRendersAtExpectedSize() throws {
-        let size = HUDMetrics.expandedSize(providerCount: 3)
+        let size = HUDMetrics.expandedSize(providerCount: MonitorSource.defaults.count)
         let image = try render(installed: MonitorSource.defaults, settingsOpen: true)
         XCTAssertEqual(image.width, Int(size.width) * 2)
         XCTAssertEqual(image.height, Int(size.height) * 2)
@@ -128,6 +128,38 @@ final class RenderTests: XCTestCase {
         XCTAssertEqual(image.width, Int(size.width) * 2)
         XCTAssertEqual(image.height, Int(size.height) * 2)
         try writeSnapshotIfRequested(image, variable: "UNOTCH_FOUR_SNAPSHOT")
+    }
+
+    /// Antigravity's 5-hour and weekly usage at the bottom of a five-ring rail, with
+    /// Grok Bot under Cursor.
+    func testAntigravityRingMakesAFiveRingRail() async throws {
+        let reset = Date().addingTimeInterval(3 * 3600)
+        let limits = [
+            UsageLimit(label: "5-hour limit", remainingFraction: 0.4, resetAt: reset),
+            UsageLimit(label: "Weekly limit", remainingFraction: 0.72, resetAt: reset.addingTimeInterval(6 * 86_400))
+        ]
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.antigravity, .claude, .codex, .cursor, .grokBot],
+            snapshots: [
+                .claude: StubFetcher.loaded(.claude, remaining: 0.66),
+                .codex: StubFetcher.loaded(.codex, remaining: 0.30),
+                .cursor: StubFetcher.loaded(.cursor, remaining: 0.95),
+                .grokBot: StubFetcher.loaded(.grokBot, remaining: 0.92),
+                .antigravity: UsageSnapshot(source: .antigravity, limits: limits, updatedAt: Date(), state: .loaded)
+            ]
+        ))
+        monitor.refreshAll()
+        for _ in 0..<200 where monitor.providers.count < 5 {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTAssertEqual(monitor.providers, [.claude, .codex, .cursor, .grokBot, .antigravity])
+        monitor.select(.antigravity)
+
+        let size = HUDMetrics.expandedSize(providerCount: 5)
+        let image = try render(monitor: monitor, settingsOpen: false)
+        XCTAssertEqual(image.width, Int(size.width) * 2)
+        XCTAssertEqual(image.height, Int(size.height) * 2)
+        try writeSnapshotIfRequested(image, variable: "UNOTCH_ANTIGRAVITY_SNAPSHOT")
     }
 
     func testLowRemainingRingRendersRed() async throws {

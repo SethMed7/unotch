@@ -325,6 +325,68 @@ final class NotchStateTests: XCTestCase {
         )
     }
 
+    /// What `retrieveUserQuotaSummary` answered for a signed-in `agy`, with the Claude
+    /// and GPT group's 5-hour bucket spent — where protobuf JSON drops the zero.
+    private let antigravitySummary = Data("""
+    {
+      "groups": [
+        {
+          "buckets": [
+            {"bucketId": "gemini-weekly", "displayName": "Weekly Limit Remaining", "window": "weekly", "resetTime": "2026-09-30T14:38:19Z", "remainingFraction": 0.72},
+            {"bucketId": "gemini-5h", "displayName": "Five Hour Limit Remaining", "window": "5h", "resetTime": "2026-09-23T19:38:19Z", "remainingFraction": 0.4}
+          ],
+          "displayName": "Gemini Models",
+          "description": "Models within this group: Gemini Flash, Gemini Pro"
+        },
+        {
+          "buckets": [
+            {"bucketId": "3p-weekly", "displayName": "Weekly Limit Remaining", "window": "weekly", "resetTime": "2026-09-30T14:38:19Z", "remainingFraction": 1},
+            {"bucketId": "3p-5h", "displayName": "Five Hour Limit Remaining", "window": "5h", "resetTime": "2026-09-23T19:38:19Z"}
+          ],
+          "displayName": "Claude and GPT models",
+          "description": "Models within this group: Claude Opus, Claude Sonnet, GPT-OSS"
+        }
+      ]
+    }
+    """.utf8)
+
+    func testAntigravityParserShowsPlainUsageNotModelGroups() throws {
+        let snapshot = try UsageCLIParser.antigravity(antigravitySummary)
+        XCTAssertEqual(snapshot.source, .antigravity)
+        XCTAssertEqual(snapshot.state, .loaded)
+        XCTAssertEqual(snapshot.limits.map(\.label), ["5-hour limit", "Weekly limit"])
+        XCTAssertEqual(snapshot.limits[0].remainingPercent, 0, "a bucket without remainingFraction is spent, and it is the lowest 5-hour")
+        XCTAssertEqual(snapshot.limits[0].resetAt, ISO8601DateFormatter().date(from: "2026-09-23T19:38:19Z"))
+        XCTAssertEqual(snapshot.limits[1].remainingFraction, 0.72, accuracy: 0.000_001, "the lower weekly of the two groups")
+        XCTAssertEqual(snapshot.limits[1].resetAt, ISO8601DateFormatter().date(from: "2026-09-30T14:38:19Z"))
+        XCTAssertFalse(snapshot.limits.contains { $0.canRedeem || !$0.showsMeter }, "usage only, no resets row")
+        XCTAssertEqual(snapshot.remainingPercent, 0, "the ring follows the lower of the two")
+    }
+
+    func testAntigravityParserRejectsAnErrorEnvelope() {
+        let denied = Data(#"{"error":{"code":403,"status":"PERMISSION_DENIED"}}"#.utf8)
+        XCTAssertThrowsError(try UsageCLIParser.antigravity(denied))
+        XCTAssertThrowsError(try UsageCLIParser.antigravity(Data(#"{"groups":[]}"#.utf8)))
+    }
+
+    func testAntigravityTokenComesOutOfTheKeychainBlob() throws {
+        let json = #"{"token":{"access_token":"ya29.test","token_type":"Bearer","refresh_token":"1//r","expiry":"2026-09-23T11:35:47.610891-04:00"},"auth_method":"consumer"}"#
+        let blob = Data(("go-keyring-base64:" + Data(json.utf8).base64EncodedString()).utf8)
+        let token = try XCTUnwrap(UsageCLIParser.antigravityToken(blob))
+        XCTAssertEqual(token.accessToken, "ya29.test")
+        let expiry = try XCTUnwrap(token.expiry)
+        XCTAssertEqual(expiry.timeIntervalSince1970, ISO8601DateFormatter().date(from: "2026-09-23T15:35:47Z")!.timeIntervalSince1970, accuracy: 1)
+        XCTAssertFalse(token.isStale(now: expiry.addingTimeInterval(-600)))
+        XCTAssertTrue(token.isStale(now: expiry.addingTimeInterval(-60)), "renewed a little early")
+        XCTAssertEqual(UsageCLIParser.antigravityToken(Data(json.utf8)), token, "plain JSON reads the same")
+        XCTAssertNil(UsageCLIParser.antigravityToken(Data("go-keyring-base64:!!!".utf8)))
+        XCTAssertNil(UsageCLIParser.antigravityToken(Data(#"{"token":{}}"#.utf8)))
+    }
+
+    func testAntigravityRequestNamesTheAntigravityClient() {
+        XCTAssertTrue(CLIUsageFetcher.antigravityUserAgent(cliVersion: "1.2.8").hasPrefix("antigravity/1.2.8 "))
+    }
+
     func testCursorUsageParserReadsIncludedMonthlyUsage() throws {
         let output = Data("Usage • Ultra     Resets Sep 19\nMonthly plan and on-demand usage\nIncluded        7% used".utf8)
         let snapshot = try UsageCLIParser.cursor(output)
@@ -592,6 +654,16 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: rail - footer - 1, railHeight: rail, footerHeight: footer, providers: providers), .grokBot)
     }
 
+    func testFiveRingsFitWhenAntigravityJoins() {
+        XCTAssertEqual(HUDMetrics.railHeight(providerCount: 5), 384)
+        XCTAssertEqual(HUDMetrics.expandedSize(providerCount: 5).height, 384)
+        let providers: [Provider] = [.claude, .codex, .cursor, .grokBot, .antigravity]
+        let rail = HUDMetrics.railHeight(providerCount: 5)
+        let footer = HUDMetrics.railFooterHeight
+        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: rail - footer - 1, railHeight: rail, footerHeight: footer, providers: providers), .antigravity)
+        XCTAssertEqual(ProviderHoverGeometry.provider(distanceFromTop: rail - footer - 70, railHeight: rail, footerHeight: footer, providers: providers), .grokBot)
+    }
+
     func testRailShrinksToTheInstalledProviders() {
         XCTAssertEqual(HUDMetrics.railHeight(providerCount: 3), 252)
         XCTAssertEqual(HUDMetrics.railHeight(providerCount: 2), 186)
@@ -642,11 +714,23 @@ final class NotchStateTests: XCTestCase {
         XCTAssertEqual(monitor.snapshot.source, .cursor)
     }
 
+    func testAntigravityAlwaysSitsAtTheBottomOfTheRail() async {
+        let monitor = UsageMonitor(fetcher: StubFetcher(
+            installed: [.antigravity, .claude, .cursor, .grokBot],
+            snapshots: [.grokBot: StubFetcher.loaded(.grokBot, remaining: 0.9)]
+        ))
+        monitor.detectInstalledSources()
+        XCTAssertEqual(monitor.providers, [.claude, .cursor, .antigravity])
+        monitor.refreshAll()
+        await settle { monitor.providers.count == 4 }
+        XCTAssertEqual(monitor.providers, [.claude, .cursor, .grokBot, .antigravity], "Grok Bot joins above it")
+    }
+
     func testNothingInstalledKeepsEveryCLIProviderVisible() {
         let monitor = UsageMonitor(fetcher: StubFetcher(installed: []))
         monitor.detectInstalledSources()
         XCTAssertEqual(monitor.sources, MonitorSource.defaults)
-        XCTAssertEqual(monitor.providers, [.claude, .codex, .cursor], "Grok Bot has no CLI to point at")
+        XCTAssertEqual(monitor.providers, [.claude, .codex, .cursor, .antigravity], "Grok Bot has no CLI to point at")
     }
 
     func testGrokBotEarnsItsRingWithARead() async {

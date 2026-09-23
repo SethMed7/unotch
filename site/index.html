@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#B7C9C1">
   <title>uNotch — Live AI usage, quietly tucked into the edge of your Mac</title>
-  <meta name="description" content="uNotch is a free, open-source macOS menu bar utility that shows your Claude, Codex, and Cursor Agent usage limits in a glass HUD at the edge of the screen. No accounts, no telemetry.">
+  <meta name="description" content="uNotch is a free, open-source macOS menu bar utility that shows your Claude, Codex, Cursor Agent, and Antigravity usage limits in a glass HUD at the edge of the screen. No accounts, no telemetry.">
   <link rel="canonical" href="https://unotch.sethmedina.com/">
   <link rel="icon" href="favicon.ico?v=2" sizes="16x16 32x32 48x48">
   <link rel="icon" href="brand/logo/favicon.svg?v=2" type="image/svg+xml">
@@ -19,7 +19,7 @@
   <meta property="og:site_name" content="uNotch">
   <meta property="og:locale" content="en_US">
   <meta property="og:title" content="uNotch — Live AI usage, quietly tucked into the edge of your Mac">
-  <meta property="og:description" content="Claude, Codex, and Cursor Agent usage at the edge of your Mac. Free, open source, and private. macOS 14+.">
+  <meta property="og:description" content="Claude, Codex, Cursor Agent, and Antigravity usage at the edge of your Mac. Free, open source, and private. macOS 14+.">
   <meta property="og:url" content="https://unotch.sethmedina.com/">
   <meta property="og:image" content="https://unotch.sethmedina.com/assets/unotch-social-v2.png">
   <meta property="og:image:type" content="image/png">
@@ -28,7 +28,7 @@
   <meta property="og:image:alt" content="uNotch — Live AI usage, quietly tucked into the edge of your Mac. A screen-and-notch logo beside a desktop showing Claude, Codex, and Cursor usage in the side HUD.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="uNotch — Live AI usage, quietly tucked into the edge of your Mac">
-  <meta name="twitter:description" content="Claude, Codex, and Cursor Agent usage at the edge of your Mac. Free, open source, and private. macOS 14+.">
+  <meta name="twitter:description" content="Claude, Codex, Cursor Agent, and Antigravity usage at the edge of your Mac. Free, open source, and private. macOS 14+.">
   <meta name="twitter:image" content="https://unotch.sethmedina.com/assets/unotch-social-v2.png">
   <meta name="twitter:image:alt" content="uNotch — Live AI usage, quietly tucked into the edge of your Mac. A screen-and-notch logo beside a desktop showing Claude, Codex, and Cursor usage in the side HUD.">
   <link rel="preload" as="image" href="assets/aetheria-emerald-805214-1440.webp" imagesrcset="assets/aetheria-emerald-805214-960.webp 960w, assets/aetheria-emerald-805214-1440.webp 1440w, assets/aetheria-emerald-805214-2048.webp 2048w" imagesizes="100vw">
@@ -274,7 +274,7 @@
     <div class="hero" id="top">
       <div>
         <h1>Live AI usage, quietly tucked into the edge of your Mac.</h1>
-        <p class="lede">uNotch is a native menu bar utility for Claude, Codex, and Cursor Agent. Hover the edge of the screen, read your limits, and get back to work.</p>
+        <p class="lede">uNotch is a native menu bar utility for Claude, Codex, Cursor Agent, and Antigravity. Hover the edge of the screen, read your limits, and get back to work.</p>
         <div class="cta">
           <a class="btn btn-primary" href="https://github.com/SethMed7/unotch/releases/latest/download/uNotch-arm64.dmg" download="uNotch-arm64.dmg" type="application/x-apple-diskimage">Download for Apple silicon</a>
           <a class="btn btn-ghost" href="https://github.com/SethMed7/unotch">View on GitHub</a>
@@ -356,6 +356,7 @@
           <tr><td>Codex</td><td data-l="Source">Codex app-server rate limits</td><td data-l="Shows">Plan windows, plus banked resets when any remain</td></tr>
           <tr><td>Cursor</td><td data-l="Source">Cursor dashboard usage RPCs</td><td data-l="Shows">Cursor Models and Other Models</td></tr>
           <tr><td>Grok Bot</td><td data-l="Source">Cursor dashboard usage RPCs, through the Cursor sign-in</td><td data-l="Shows">Grok Bot's own allowance</td></tr>
+          <tr><td>Antigravity</td><td data-l="Source">Antigravity quota endpoint, with the <code>agy</code> sign-in</td><td data-l="Shows">5-hour and weekly usage</td></tr>
         </tbody>
       </table>
     </section>
@@ -434,7 +435,7 @@ spctl --assess --type open \
         <p class="mono">© 2026 <a href="https://sethmedina.com">Seth Medina</a> · Orlando, Florida · MIT License</p>
         <p class="mono">Backdrop made with <a href="https://aetheria.sethmedina.com" rel="noopener">Aetheria</a> · Built with HTML and Caddy · No trackers</p>
       </div>
-      <p class="mono legal">Claude, ChatGPT, Codex, and Cursor are trademarks of their respective owners. uNotch is an independent project and is not affiliated with Anthropic, OpenAI, or Anysphere.</p>
+      <p class="mono legal">Claude, ChatGPT, Codex, Cursor, Antigravity, and Gemini are trademarks of their respective owners. uNotch is an independent project and is not affiliated with Anthropic, OpenAI, Anysphere, or Google.</p>
     </div>
   </footer>
 </body>

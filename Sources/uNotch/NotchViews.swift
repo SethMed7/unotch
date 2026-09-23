@@ -76,7 +76,8 @@ enum HUDMetrics {
     }
 
     /// The rail only holds the providers that are installed, so it sizes to them:
-    /// 318 pt for four (Grok Bot under Cursor), 252 for three, 186 for two, 120 for one.
+    /// 384 pt for five (Grok Bot under Cursor, then Antigravity), 318 for four, 252 for
+    /// three, 186 for two, 120 for one.
     static func railHeight(providerCount: Int) -> CGFloat {
         let count = CGFloat(max(providerCount, 1))
         return railTopPadding
@@ -1020,6 +1021,7 @@ private enum OfficialBrandAssets {
     ) ?? appIcon(at: "/Applications/ChatGPT.app")
     private static let cursor = appIcon(at: "/Applications/Cursor.app")
     private static let grokBot = appIcon(at: "/Applications/Grok Bot.app")
+    private static let antigravity = appIcon(at: "/Applications/Antigravity.app")
 
     static func image(for provider: Provider) -> NSImage? {
         switch provider {
@@ -1027,6 +1029,7 @@ private enum OfficialBrandAssets {
         case .codex: codex
         case .cursor: cursor
         case .grokBot: grokBot
+        case .antigravity: antigravity
         }
     }
 

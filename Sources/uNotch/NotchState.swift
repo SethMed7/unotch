@@ -25,6 +25,8 @@ enum Provider: String, CaseIterable, Identifiable, Sendable {
     /// Cursor's Grok Bot. Its usage comes from the Cursor sign-in, but it is its own
     /// allowance, so it gets its own ring under Cursor's.
     case grokBot
+    /// Google Antigravity's CLI, `agy`.
+    case antigravity
 
     var id: String { rawValue }
 
@@ -34,6 +36,7 @@ enum Provider: String, CaseIterable, Identifiable, Sendable {
         case .codex: "Codex"
         case .cursor: "Cursor"
         case .grokBot: "Grok Bot"
+        case .antigravity: "Antigravity"
         }
     }
 
@@ -43,6 +46,7 @@ enum Provider: String, CaseIterable, Identifiable, Sendable {
         case .codex: "chevron.left.forwardslash.chevron.right"
         case .cursor: "cursorarrow.rays"
         case .grokBot: "face.smiling"
+        case .antigravity: "arrow.up.circle"
         }
     }
 
@@ -71,9 +75,10 @@ struct MonitorSource: Hashable, Identifiable, Sendable {
     static let codex = MonitorSource(provider: .codex)
     static let cursor = MonitorSource(provider: .cursor)
     static let grokBot = MonitorSource(provider: .grokBot)
+    static let antigravity = MonitorSource(provider: .antigravity)
     /// One default subscription per CLI, in rail order. Grok Bot is not here: it is
     /// found through Cursor, never on its own.
-    static let defaults: [MonitorSource] = [.claude, .codex, .cursor]
+    static let defaults: [MonitorSource] = [.claude, .codex, .cursor, .antigravity]
 
     var id: String {
         configDirectory.map { "\(provider.rawValue):\($0)" } ?? provider.rawValue
@@ -355,6 +360,10 @@ final class UsageMonitor: ObservableObject {
             if source.provider.needsProof && !signedIn.contains(source) { continue }
             nextProviders.append(source.provider)
         }
+        // Antigravity is only a usage readout; it always sits at the bottom of the rail.
+        if let index = nextProviders.firstIndex(of: .antigravity) {
+            nextProviders.append(nextProviders.remove(at: index))
+        }
         if nextProviders != providers { providers = nextProviders }
         if !providers.contains(selectedProvider), let first = providers.first {
             selectedProvider = first
@@ -487,6 +496,7 @@ final class UsageMonitor: ObservableObject {
         case .claude: 60
         case .cursor: 60
         case .grokBot: 60
+        case .antigravity: 60
         }
     }
 }

@@ -54,6 +54,18 @@ output:
 - Grok Bot: its allowance, through the same Cursor sign-in
   (`GetSandUsageStatus` on `api2.cursor.sh`, with the same token handling). A
   plan without Grok Bot reports no allowance, and nothing is shown.
+- Antigravity: 5-hour and weekly usage (the lower across its model groups), from the endpoint
+  `agy`'s own `/usage` panel reads (`v1internal:retrieveUserQuotaSummary` on
+  `cloudcode-pa.googleapis.com`). It is authenticated with the OAuth access
+  token `agy` stores in the login keychain (service `gemini`, account
+  `antigravity`), read into memory for that request and not stored; the refresh
+  token in the same item is never used. The request's user agent names the
+  installed `agy` version (from `agy --version`, read once) and uNotch, because
+  the endpoint answers only the Antigravity client. That token lasts an hour and
+  only `agy` can renew it, so when it has lapsed uNotch runs `agy models`, which
+  signs in, lists models, and runs none — at most once every ten minutes, and
+  in practice once an hour while signed in. `agy` writes its own log each time
+  it starts. With no keychain item, `agy` is not launched.
 
 The output can contain usage percentages, reset times, and provider account
 metadata. uNotch extracts only the values needed for the HUD. Raw standard error
@@ -80,7 +92,7 @@ defaults delete app.unotch.utility
 
 ## Network and analytics
 
-uNotch makes three kinds of network request, all over HTTPS:
+uNotch makes four kinds of network request, all over HTTPS:
 
 - **Update & Restart**, only when you ask for it. That flow requests the latest
   release metadata from `api.github.com` and, if that release is newer than the
@@ -103,6 +115,11 @@ uNotch makes three kinds of network request, all over HTTPS:
   organization. Responses are parsed in memory for percentages, reset times,
   the resets count, and the grant id; the organization id is used for that
   request and not kept.
+- **Antigravity usage**, on the same refresh cycle as the other providers.
+  uNotch posts an empty JSON body to `v1internal:retrieveUserQuotaSummary` on
+  `cloudcode-pa.googleapis.com` with `agy`'s access token as a bearer. It
+  reports remaining fractions and reset times per model group and does not run
+  models. The response is parsed in memory for those values only.
 
 uNotch does not run a local server or listen on a port. It includes no
 analytics, telemetry, advertising, tracking pixels, or third-party
@@ -122,7 +139,8 @@ authentication state of each installed CLI. For Cursor dashboard usage it
 reads the existing `cursor-access-token` keychain item created by Cursor
 Agent, uses it for that HTTPS request, and does not persist it. For Claude
 resets it reads the existing `Claude Code-credentials` keychain item created
-by Claude Code the same way. Signing and
+by Claude Code the same way, and for Antigravity usage the `gemini` /
+`antigravity` item created by `agy`. Signing and
 notarization credentials used to build a release remain in the release
 operator's Keychain and are not stored in this repository or bundled with
 the app.

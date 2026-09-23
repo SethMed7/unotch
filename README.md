@@ -22,7 +22,8 @@
   <a href="https://github.com/SethMed7/unotch/releases/latest"><img src="https://img.shields.io/github/v/release/SethMed7/unotch?color=3BE29B&labelColor=15191B&label=release" alt="Latest release"></a>
 </p>
 
-uNotch is a lightweight menu bar utility for Claude, Codex, and Cursor Agent.
+uNotch is a lightweight menu bar utility for Claude, Codex, Cursor Agent, and
+Antigravity.
 Its nearly hidden edge cue expands into a glass usage HUD when you hover — no
 dashboard window and no Dock icon.
 
@@ -34,12 +35,16 @@ dashboard window and no Dock icon.
 | Codex | Codex app-server rate limits | Plan windows, plus banked resets when any remain (Use reset spends one) |
 | Cursor | Cursor dashboard usage RPCs (Agent `/usage` fallback) | Cursor Models and Other Models |
 | Grok Bot | Cursor dashboard usage RPCs, through the Cursor sign-in | Grok Bot's own allowance |
+| Antigravity | Antigravity's quota endpoint, with the `agy` CLI's sign-in | 5-hour and weekly usage |
 
 All usage is read from command-line tools already authenticated on your Mac, or
 with the session those tools already keep in your login keychain (Cursor's
-dashboard RPCs; Claude's usage endpoint, for resets). uNotch does not ask for,
-copy, or store provider credentials. Only the providers
-whose CLI is installed appear; the rail sizes to fit one to four. Grok Bot has no
+dashboard RPCs; Claude's usage endpoint, for resets; Antigravity's quota
+endpoint). uNotch does not ask for, copy, or store provider credentials. Only the
+providers whose CLI is installed appear; the rail sizes to fit one to five.
+Antigravity's sign-in token lasts an hour and only `agy` can renew it, so when it
+has lapsed uNotch runs `agy models` — which signs in and runs no model — at most
+once an hour. Grok Bot has no
 CLI of its own — its ring sits under Cursor's and appears once a read shows your
 Cursor plan includes it.
 
@@ -61,7 +66,8 @@ Code leaves a `.claude.json` there; Codex leaves an `auth.json` beside its
 is not a second sign-in) — and reads that sign-in. There is nothing else to
 configure.
 The label comes from the folder name (`~/.claude-dev` → `dev`,
-`~/.cursor-work` → `work`).
+`~/.cursor-work` → `work`). For Antigravity, uNotch reads the sign-in `agy`
+keeps in the login keychain; a second `agy` sign-in is not looked for.
 
 Each provider still has one ring. Once a second subscription is signed in, a
 strip appears under the pop-out's title with one cell per subscription — its name
@@ -91,7 +97,8 @@ The installer supports Apple silicon Macs running macOS 14 Sonoma or newer.
   Above 10% the ring you are on is mint. The first time something drops to 10%
   or below, the whole edge cue turns red. Opening it dismisses that, and the
   cue stays quiet until that usage climbs above 10% and drops again. Claude's
-  ring follows the lower of the 5-hour window and the weekly limit. Providers without an installed CLI are not shown; install one and its
+  ring follows the lower of the 5-hour window and the weekly limit, and so does
+  Antigravity's, which always sits at the bottom of the rail. Providers without an installed CLI are not shown; install one and its
   ring appears within a minute.
 - Use the refresh control for an immediate read from the selected local CLI.
 - On Codex, when **Resets available** shows a count above zero, **Use reset**
@@ -120,9 +127,10 @@ The saved edge and vertical position are restored on the next launch.
 - Raw CLI errors are discarded so account identifiers and local paths are not
   exposed in the interface.
 - Only the screen edge and vertical position are stored in macOS preferences.
-- Network use is **Update & Restart** (GitHub Releases, only when you click it)
-  and Cursor dashboard usage RPCs that reuse the local Agent session. Those
-  usage endpoints do not run models or spend included usage.
+- Network use is **Update & Restart** (GitHub Releases, only when you click it),
+  Cursor dashboard usage RPCs that reuse the local Agent session, Claude's usage
+  endpoint for resets, and Antigravity's quota summary with `agy`'s sign-in.
+  Those usage endpoints do not run models or spend included usage.
 
 Provider CLIs still use their own network connections, authentication stores,
 and caches. See [PRIVACY.md](PRIVACY.md) for the complete data flow and
@@ -133,7 +141,8 @@ and how to report a vulnerability.
 
 - macOS 14 or newer
 - Apple silicon for the downloadable DMG
-- At least one supported local CLI: `claude`, `codex`, or Cursor's `agent`
+- At least one supported local CLI: `claude`, `codex`, Cursor's `agent`, or
+  Antigravity's `agy`
 
 Missing or signed-out CLIs are shown as unavailable without affecting the other
 providers.
@@ -207,6 +216,6 @@ so it can be investigated before publication.
 
 ## License
 
-[MIT](LICENSE) © 2026 Seth Medina. Claude, Codex, ChatGPT, and Cursor are
-trademarks of their respective owners; uNotch is an independent project and is
-not affiliated with Anthropic, OpenAI, or Anysphere.
+[MIT](LICENSE) © 2026 Seth Medina. Claude, Codex, ChatGPT, Cursor, Antigravity,
+and Gemini are trademarks of their respective owners; uNotch is an independent
+project and is not affiliated with Anthropic, OpenAI, Anysphere, or Google.

@@ -78,9 +78,20 @@ actor CLIUsageFetcher: UsageFetching {
     private static let claudeDirectAttempts = 8
     private static let claudeDirectRetryDelay: TimeInterval = 20
 
+    /// `agy --version`, looked up once it answers. Antigravity's quota endpoint only
+    /// answers a request that names the Antigravity client.
+    private var antigravityCLIVersion: String?
+    /// When uNotch last started `agy` to refresh its sign-in. A refresh that did not
+    /// help (signed out, offline) is not retried for `antigravityRefreshSpacing`.
+    private var antigravityRefreshedAt: Date?
+    private static let antigravityRefreshSpacing: TimeInterval = 10 * 60
+
     func fetchUsage(for source: MonitorSource) async -> UsageSnapshot {
         if source.provider == .claude {
             return await fetchClaude(for: source)
+        }
+        if source.provider == .antigravity {
+            return await fetchAntigravity(for: source)
         }
         return await Task.detached(priority: .utility) {
             switch source.provider {
@@ -92,6 +103,8 @@ actor CLIUsageFetcher: UsageFetching {
                 return Self.fetchCursorUsage(for: source)
             case .grokBot:
                 return Self.fetchGrokBotUsage(for: source)
+            case .antigravity:
+                return Self.fetchAntigravityUsage(for: source, cliVersion: nil, mayRefreshToken: false).snapshot
             }
         }.value
     }
@@ -112,7 +125,7 @@ actor CLIUsageFetcher: UsageFetching {
             claudeResets[source] = nil
             claudeDirectBackoffUntil[source] = nil
             return result
-        case .cursor, .grokBot:
+        case .cursor, .grokBot, .antigravity:
             return .unsupported
         }
     }
@@ -154,6 +167,21 @@ actor CLIUsageFetcher: UsageFetching {
             snapshot.limits.append(limit)
         }
         return snapshot
+    }
+
+    private func fetchAntigravity(for source: MonitorSource) async -> UsageSnapshot {
+        if antigravityCLIVersion == nil {
+            antigravityCLIVersion = await Task.detached(priority: .utility) { Self.antigravityVersion() }.value
+        }
+        let version = antigravityCLIVersion
+        let mayRefresh = antigravityRefreshedAt.map {
+            Date().timeIntervalSince($0) >= Self.antigravityRefreshSpacing
+        } ?? true
+        let read = await Task.detached(priority: .utility) {
+            Self.fetchAntigravityUsage(for: source, cliVersion: version, mayRefreshToken: mayRefresh)
+        }.value
+        if read.refreshed { antigravityRefreshedAt = Date() }
+        return read.snapshot
     }
 
     private func claudeVersion() async -> String? {
@@ -221,7 +249,9 @@ actor CLIUsageFetcher: UsageFetching {
                 folder.resolvingSymlinksInPath().path != defaultHome
                     && has("cli-config.json", in: folder)
             }
-        case .grokBot:
+        case .grokBot, .antigravity:
+            // Antigravity is read from the one keychain item `agy` signs in to by
+            // default; a second `agy` sign-in is not looked for.
             return []
         }
 
@@ -267,6 +297,12 @@ actor CLIUsageFetcher: UsageFetching {
                 "\(home)/.local/bin/agent",
                 "/opt/homebrew/bin/agent",
                 "/usr/local/bin/agent"
+            ])
+        case .antigravity:
+            return executable(named: "agy", preferredPaths: [
+                "\(home)/.local/bin/agy",
+                "/opt/homebrew/bin/agy",
+                "/usr/local/bin/agy"
             ])
         }
     }
@@ -471,6 +507,93 @@ actor CLIUsageFetcher: UsageFetching {
             }
             return .failed(source: source, message: userFacingMessage(error))
         }
+    }
+
+    /// Antigravity's usage straight from the endpoint `agy`'s own `/usage` panel asks,
+    /// with the OAuth token `agy` keeps in the login keychain. That token lasts an hour
+    /// and only `agy` can renew it, so once it is stale uNotch runs `agy models` — the
+    /// lightest command that signs in, and one that runs no model — then reads the
+    /// renewed token. That is at most one launch an hour while `agy` is signed in.
+    /// `refreshed` reports whether `agy` was launched.
+    private static func fetchAntigravityUsage(
+        for source: MonitorSource,
+        cliVersion: String?,
+        mayRefreshToken: Bool
+    ) -> (snapshot: UsageSnapshot, refreshed: Bool) {
+        guard let executable = executablePath(for: .antigravity) else {
+            return (.unavailable(source: source, message: "Antigravity CLI not found"), false)
+        }
+        let signedOut = UsageSnapshot.unavailable(source: source, message: "Sign in with the Antigravity CLI")
+        // No keychain item: never signed in, or signed out. Launching `agy` cannot help.
+        guard var token = antigravityKeychainToken() else { return (signedOut, false) }
+
+        var refreshed = false
+        func refresh() -> Bool {
+            guard mayRefreshToken, !refreshed else { return false }
+            refreshed = true
+            _ = try? ProcessRunner.run(
+                executable: executable,
+                arguments: ["models"],
+                timeout: 30,
+                requiresCleanExit: false
+            )
+            guard let renewed = antigravityKeychainToken() else { return false }
+            token = renewed
+            return true
+        }
+
+        // Renew first when it is due; the reply then tells signed out (401) from offline.
+        if token.isStale() { _ = refresh() }
+        let userAgent = antigravityUserAgent(cliVersion: cliVersion ?? "0")
+        do {
+            var reply = try ProcessRunner.antigravityAPI(
+                method: "retrieveUserQuotaSummary",
+                token: token.accessToken,
+                userAgent: userAgent
+            )
+            // A token revoked before its expiry: one renewal, one more try.
+            if reply.status == 401, refresh() {
+                reply = try ProcessRunner.antigravityAPI(
+                    method: "retrieveUserQuotaSummary",
+                    token: token.accessToken,
+                    userAgent: userAgent
+                )
+            }
+            if reply.status == 401 { return (signedOut, refreshed) }
+            guard reply.status == 200 else {
+                return (.failed(source: source, message: "Antigravity usage read failed"), refreshed)
+            }
+            return (try UsageCLIParser.antigravity(reply.data, source: source), refreshed)
+        } catch {
+            return (.failed(source: source, message: userFacingMessage(error)), refreshed)
+        }
+    }
+
+    /// The endpoint turns away any client that does not name itself as Antigravity —
+    /// with a 403 that claims there is no license, which is misleading — so the request
+    /// carries the installed `agy`'s client string, followed by uNotch's.
+    static func antigravityUserAgent(cliVersion: String) -> String {
+        "antigravity/\(cliVersion) darwin/arm64 \(AppInfo.name)/\(AppInfo.version)"
+    }
+
+    /// `agy --version` prints only the number. It does not start the language server.
+    private static func antigravityVersion() -> String? {
+        guard let executable = executablePath(for: .antigravity),
+              let output = try? ProcessRunner.run(executable: executable, arguments: ["--version"], timeout: 8)
+        else { return nil }
+        let version = String(decoding: output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        return version.isEmpty || version.contains(" ") ? nil : version
+    }
+
+    /// The sign-in `agy` stores in the login keychain as service `gemini`, account
+    /// `antigravity`. Read into memory for the request and never stored.
+    private static func antigravityKeychainToken() -> AntigravityToken? {
+        guard let data = try? ProcessRunner.run(
+            executable: "/usr/bin/security",
+            arguments: ["find-generic-password", "-s", "gemini", "-a", "antigravity", "-w"],
+            timeout: 4
+        ) else { return nil }
+        return UsageCLIParser.antigravityToken(data)
     }
 
     private static func fetchCursorUsage(for source: MonitorSource) -> UsageSnapshot {
@@ -951,6 +1074,51 @@ enum UsageCLIParser {
         }
     }
 
+    /// `retrieveUserQuotaSummary`: model groups (Gemini; Claude and GPT), each with a
+    /// 5-hour and a weekly bucket. The HUD shows plain usage, not a row per model
+    /// group: one 5-hour and one weekly row, each the lowest across the groups, with
+    /// that bucket's reset time. The ring follows the lower of the two.
+    static func antigravity(
+        _ data: Data,
+        source: MonitorSource = .antigravity,
+        now: Date = Date()
+    ) throws -> UsageSnapshot {
+        guard let root = jsonObject(data), let groups = root["groups"] as? [[String: Any]] else {
+            throw CLIUsageError("Antigravity usage returned no plan limits")
+        }
+        var lowest: [String: (remaining: Double, resetAt: Date?)] = [:]
+        for bucket in groups.flatMap({ $0["buckets"] as? [[String: Any]] ?? [] }) {
+            guard let window = (bucket["window"] as? String)?.lowercased() else { continue }
+            // Protobuf JSON leaves out a zero, so a bucket without the field is empty.
+            let remaining = percentValue(bucket["remainingFraction"]) ?? 0
+            if let known = lowest[window], known.remaining <= remaining { continue }
+            lowest[window] = (remaining, date(from: bucket["resetTime"]))
+        }
+        let limits = [("5h", "5-hour limit"), ("weekly", "Weekly limit")].compactMap { window, label in
+            lowest[window].map { UsageLimit(label: label, remainingFraction: $0.remaining, resetAt: $0.resetAt) }
+        }
+        guard !limits.isEmpty else {
+            throw CLIUsageError("Antigravity usage returned no plan limits")
+        }
+        return UsageSnapshot(source: source, limits: limits, updatedAt: now, state: .loaded)
+    }
+
+    /// `agy`'s keychain item: `go-keyring-base64:` and base64 of
+    /// `{"token": {"access_token", "expiry", …}, …}`. Only the access token and its
+    /// expiry are kept.
+    static func antigravityToken(_ data: Data) -> AntigravityToken? {
+        var text = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        let prefix = "go-keyring-base64:"
+        if text.hasPrefix(prefix) {
+            guard let decoded = Data(base64Encoded: String(text.dropFirst(prefix.count))) else { return nil }
+            text = String(decoding: decoded, as: UTF8.self)
+        }
+        guard let root = jsonObject(Data(text.utf8)),
+              let token = root["token"] as? [String: Any],
+              let access = token["access_token"] as? String, !access.isEmpty else { return nil }
+        return AntigravityToken(accessToken: access, expiry: date(from: token["expiry"]))
+    }
+
     static func cursor(_ data: Data, now: Date = Date()) throws -> UsageSnapshot {
         let text = String(decoding: data, as: UTF8.self)
         let reset = firstMatch(
@@ -1243,6 +1411,18 @@ private struct CursorStatus: Decodable {
     let isAuthenticated: Bool
 }
 
+struct AntigravityToken: Equatable, Sendable {
+    let accessToken: String
+    let expiry: Date?
+
+    /// Stale a couple of minutes early, so it cannot lapse mid-request. No expiry at all
+    /// is not stale; a 401 settles that.
+    func isStale(now: Date = Date()) -> Bool {
+        guard let expiry else { return false }
+        return expiry <= now.addingTimeInterval(120)
+    }
+}
+
 struct HTTPReply: Equatable, Sendable {
     let status: Int
     let data: Data
@@ -1442,6 +1622,37 @@ enum ProcessRunner {
         }
         guard !capture.transportFailed, let http = capture.response as? HTTPURLResponse else {
             throw CLIUsageError("Claude usage read failed")
+        }
+        return HTTPReply(status: http.statusCode, data: capture.data ?? Data())
+    }
+
+    /// One call to Antigravity's Cloud Code API (`v1internal:<method>`) with `agy`'s
+    /// OAuth token, posting an empty body. The status comes back with the body so an
+    /// expired token can be told from a real answer.
+    static func antigravityAPI(method: String, token: String, userAgent: String) throws -> HTTPReply {
+        guard let url = URL(string: "https://cloudcode-pa.googleapis.com/v1internal:\(method)") else {
+            throw CLIUsageError("Antigravity usage read failed")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = Data("{}".utf8)
+        request.timeoutInterval = 10
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+
+        let capture = HTTPCapture()
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            capture.finish(data: data, response: response, error: error)
+        }
+        task.resume()
+        guard capture.wait(timeout: 10) else {
+            task.cancel()
+            throw CLIUsageError("Antigravity usage read timed out")
+        }
+        guard !capture.transportFailed, let http = capture.response as? HTTPURLResponse else {
+            throw CLIUsageError("Antigravity usage read failed")
         }
         return HTTPReply(status: http.statusCode, data: capture.data ?? Data())
     }

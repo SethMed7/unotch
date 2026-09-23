@@ -6,6 +6,21 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-09-23
+
+### Added
+- **Antigravity usage.** With Google Antigravity's CLI (`agy`) installed and
+  signed in, an Antigravity ring joins the bottom of the rail. Its pop-out shows
+  plain 5-hour and weekly usage with their reset times — `agy` splits each by
+  model group, and uNotch shows the lower of the two. The Antigravity app is not
+  needed; only the CLI.
+
+### Changed
+- Antigravity is read from its quota endpoint with the token `agy` keeps in the
+  login keychain. That token lasts an hour and only `agy` can renew it, so when it
+  has lapsed uNotch runs `agy models` (no model runs) to renew it, at most once
+  every ten minutes. See PRIVACY.md.
+
 ## [1.8.2] — 2026-09-22
 
 ### Fixed
@@ -258,7 +273,8 @@ it has no extra subscriptions to find; its sign-in check is unchanged.
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.8.2...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/SethMed7/unotch/compare/v1.8.2...v1.9.0
 [1.8.2]: https://github.com/SethMed7/unotch/compare/v1.8.1...v1.8.2
 [1.8.1]: https://github.com/SethMed7/unotch/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/SethMed7/unotch/compare/v1.7.0...v1.8.0
