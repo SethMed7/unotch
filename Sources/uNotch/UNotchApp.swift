@@ -186,7 +186,11 @@ private enum StatusMenuBrandAssets {
         case .codex: path = "/Applications/ChatGPT.app"
         case .cursor: path = "/Applications/Cursor.app"
         case .grokBot: path = "/Applications/Grok Bot.app"
-        case .antigravity: path = "/Applications/Antigravity.app"
+        case .antigravity:
+            // No app to borrow from; the mark ships with uNotch.
+            guard let mark = BundledProviderLogos.antigravity?.copy() as? NSImage else { return nil }
+            mark.size = NSSize(width: 16, height: 16)
+            return mark
         }
         guard FileManager.default.fileExists(atPath: path) else { return nil }
         let image = NSWorkspace.shared.icon(forFile: path)

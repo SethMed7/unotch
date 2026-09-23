@@ -6,6 +6,13 @@ All notable changes to uNotch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.9.1] — 2026-09-23
+
+### Changed
+- **Antigravity's ring and pop-out use the Antigravity mark** instead of a generic
+  arrow. uNotch carries the mark itself, so it shows without the Antigravity app
+  installed.
+
 ## [1.9.0] — 2026-09-23
 
 ### Added
@@ -273,7 +280,8 @@ it has no extra subscriptions to find; its sign-in check is unchanged.
 - Initial release: edge cue, provider rail, usage callout for Claude, Codex, and
   Cursor Agent; menu bar item; signed and notarized DMG.
 
-[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/SethMed7/unotch/compare/v1.9.1...HEAD
+[1.9.1]: https://github.com/SethMed7/unotch/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/SethMed7/unotch/compare/v1.8.2...v1.9.0
 [1.8.2]: https://github.com/SethMed7/unotch/compare/v1.8.1...v1.8.2
 [1.8.1]: https://github.com/SethMed7/unotch/compare/v1.8.0...v1.8.1

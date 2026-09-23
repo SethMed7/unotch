@@ -1003,6 +1003,9 @@ private struct CompanyLogo: View {
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
+                    // App icons carry a margin inside their tile; a bare mark gets the
+                    // same so it reads at the same size.
+                    .scaleEffect(provider == .antigravity ? 0.82 : 1)
             } else {
                 Image(systemName: provider.symbol)
                     .resizable()
@@ -1021,7 +1024,8 @@ private enum OfficialBrandAssets {
     ) ?? appIcon(at: "/Applications/ChatGPT.app")
     private static let cursor = appIcon(at: "/Applications/Cursor.app")
     private static let grokBot = appIcon(at: "/Applications/Grok Bot.app")
-    private static let antigravity = appIcon(at: "/Applications/Antigravity.app")
+    /// The CLI is all Antigravity needs, so its mark ships with uNotch.
+    private static let antigravity = BundledProviderLogos.antigravity
 
     static func image(for provider: Provider) -> NSImage? {
         switch provider {

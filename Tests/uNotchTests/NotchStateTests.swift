@@ -383,6 +383,11 @@ final class NotchStateTests: XCTestCase {
         XCTAssertNil(UsageCLIParser.antigravityToken(Data(#"{"token":{}}"#.utf8)))
     }
 
+    func testAntigravityMarkShipsWithTheApp() throws {
+        let mark = try XCTUnwrap(BundledProviderLogos.antigravity, "the embedded PNG decodes")
+        XCTAssertGreaterThan(mark.size.width, 0)
+    }
+
     func testAntigravityRequestNamesTheAntigravityClient() {
         XCTAssertTrue(CLIUsageFetcher.antigravityUserAgent(cliVersion: "1.2.8").hasPrefix("antigravity/1.2.8 "))
     }
